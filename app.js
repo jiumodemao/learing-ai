@@ -7,8 +7,8 @@
   const $$ = (s) => document.querySelectorAll(s);
 
   // ---------- 工具 ----------
-  const today = new Date();
-  const dateKey = () => today.toISOString().slice(0, 10);
+  const today = new Date(); // 仅用于显示当天日期
+  const dateKey = () => new Date().toISOString().slice(0, 10); // 动态取当前日期，跨午夜仍准确
   const storage = {
     get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
     set(k, v) { localStorage.setItem(k, JSON.stringify(v)); },
@@ -48,7 +48,7 @@
     taskListEl.innerHTML = '';
     rows.forEach((t) => {
       const li = document.createElement('li');
-      li.innerHTML = `<input type="checkbox"${t.done ? ' checked' : ''}><span>${t.title}</span>`;
+      li.innerHTML = `<input type="checkbox"${t.done ? ' checked' : ''}><span>${escText(t.title)}</span>`;
       li.classList.toggle('done', !!t.done);
       li.querySelector('input').addEventListener('change', (e) => {
         const done = e.target.checked;
@@ -82,9 +82,11 @@
       let { data } = await s.from('daily_tasks')
         .select('*').eq('user_id', u.id).eq('task_date', dateKey());
       if (!data || data.length === 0) {
-        await s.from('daily_tasks').insert(
-          TASK_TEMPLATE.map((title) => ({ user_id: u.id, task_date: dateKey(), title }))
-        );
+        try {
+          await s.from('daily_tasks').insert(
+            TASK_TEMPLATE.map((title) => ({ user_id: u.id, task_date: dateKey(), title }))
+          );
+        } catch { /* 并发插入冲突由数据库唯一约束兜底 */ }
         data = (await s.from('daily_tasks')
           .select('*').eq('user_id', u.id).eq('task_date', dateKey())).data;
       }
@@ -288,6 +290,10 @@
       const pct = stLessons.length ? Math.round((doneCount / stLessons.length) * 100) : 0;
       return { ...st, pct, units: stUnits, lessons: stLessons };
     });
+    if (!stageData.length) {
+      root.innerHTML = '<div class="card"><p class="muted">课程数据未就绪，请检查网络后重试。</p></div>';
+      return;
+    }
     if (pathStageIdx >= stageData.length) pathStageIdx = 0;
 
     // 顶部总览卡：今日已学 + 总进度
@@ -540,9 +546,11 @@
       : '刚开始学习，尚未选择单元';
   }
 
+  let chatBusy = false; // 发送互斥：上一轮流式回复结束前不允许再发，防止会话分裂
   async function sendChat() {
     const text = chatInput.value.trim();
-    if (!text) return;
+    if (!text || chatBusy) return;
+    chatBusy = true;
     addRow('me', text, false);
     chatInput.value = '';
 
@@ -594,16 +602,15 @@
           buf = buf.slice(idx + 2);
           for (const line of chunk.split('\n')) {
             if (!line.startsWith('data: ')) continue;
-            try {
-              const o = JSON.parse(line.slice(6));
-              if (o.delta) {
-                acc += o.delta;
-                typing.bubble.classList.add('md-body');
-                typing.bubble.innerHTML = renderMD(acc);
-                msgs.scrollTop = msgs.scrollHeight;
-              }
-              if (o.error) throw new Error(o.error);
-            } catch (e) { /* 忽略解析失败行 */ }
+            let o;
+            try { o = JSON.parse(line.slice(6)); } catch { continue; } // 忽略解析失败的行
+            if (o.error) throw new Error(o.error); // 服务端错误：中止流并提示用户
+            if (o.delta) {
+              acc += o.delta;
+              typing.bubble.classList.add('md-body');
+              typing.bubble.innerHTML = renderMD(acc);
+              msgs.scrollTop = msgs.scrollHeight;
+            }
           }
         }
       }
@@ -611,11 +618,16 @@
     } catch (e) {
       typing.row.remove();
       addRow('tutor', '出错了：' + (e.message || e), false);
+    } finally {
+      chatBusy = false;
     }
   }
 
   $('#chat-send').addEventListener('click', sendChat);
-  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  chatInput.addEventListener('keydown', (e) => {
+    // isComposing：中文输入法选词时按回车不发送
+    if (e.key === 'Enter' && !e.isComposing) sendChat();
+  });
   // 模型选择记忆
   const providerSel = $('#tutor-provider');
   providerSel.value = storage.get('tutor-provider', 'gemini');
@@ -671,11 +683,13 @@
     authBtn.textContent = user ? '已登录' : '登录';
     authBtn.classList.toggle('logged', !!user);
     if (user && getSupabase()) {
-      // 首次登录自动建档（显示名 = 账号前缀）
-      await getSupabase().from('profiles').upsert(
-        { id: user.id, email: user.email, display_name: (user.email || '').split('@')[0] },
-        { onConflict: 'id', ignoreDuplicates: true }
-      );
+      // 首次登录自动建档（显示名 = 账号前缀）；失败不阻塞后续加载
+      try {
+        await getSupabase().from('profiles').upsert(
+          { id: user.id, email: user.email, display_name: (user.email || '').split('@')[0] },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
+      } catch { /* 建档失败不影响主流程 */ }
     }
     // 知识库管理入口：仅管理员可见
     $('#admin-nav').hidden = !(user && isOwner());
@@ -725,13 +739,13 @@
           <div class="news-card-head"><span class="news-rank">TOP ${it.rank}</span><span class="news-title">${escText(it.title)}</span></div>
           ${it.summary ? `<p class="news-summary">${escText(it.summary)}</p>` : ''}
           ${it.why ? `<div class="news-why"><b>为什么重要：</b>${escText(it.why)}</div>` : ''}
-          ${(it.urls || []).length ? `<div class="news-links">${it.urls.map((u) => `<a href="${escAttr(u)}" target="_blank" rel="noopener">${escText(String(u).replace(/^https?:\/\//, '').slice(0, 38))}…</a>`).join(' ')}</div>` : ''}
+          ${(it.urls || []).filter((u) => /^https?:\/\//i.test(String(u))).length ? `<div class="news-links">${it.urls.filter((u) => /^https?:\/\//i.test(String(u))).map((u) => `<a href="${escAttr(u)}" target="_blank" rel="noopener">${escText(String(u).replace(/^https?:\/\//, '').slice(0, 38))}…</a>`).join(' ')}</div>` : ''}
         </div>`).join('')}
       ${quicks.length ? `
         <div class="card">
           <h2 class="card-title">快讯</h2>
           <ul class="quick-list">
-            ${quicks.map((q) => `<li>${escText(q.title)}${(q.urls || []).length ? ` <a href="${escAttr(q.urls[0])}" target="_blank" rel="noopener">[来源]</a>` : ''}</li>`).join('')}
+            ${quicks.map((q) => `<li>${escText(q.title)}${(q.urls || []).filter((u) => /^https?:\/\//i.test(String(u))).length ? ` <a href="${escAttr(q.urls[0])}" target="_blank" rel="noopener">[来源]</a>` : ''}</li>`).join('')}
           </ul>
         </div>` : ''}`;
     root.querySelector('#news-prev').addEventListener('click', () => {

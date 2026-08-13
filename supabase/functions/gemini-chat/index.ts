@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { sessionId, message, context, provider } = body;
     if (!message || !String(message).trim()) return json({ error: "消息不能为空" }, 400);
+    if (String(message).length > 4000) return json({ error: "消息过长（上限 4000 字），请精简后重试" }, 400);
     const isDeepseek = provider === "deepseek";
 
     // 3. 保存用户消息（新会话自动创建）
@@ -69,9 +70,10 @@ Deno.serve(async (req) => {
     }
     await supabase.from("chat_messages").insert({ session_id: sid, role: "user", content: message });
 
-    // 4. 取最近 20 条历史
-    const { data: history } = await supabase.from("chat_messages")
-      .select("role, content").eq("session_id", sid).order("id", { ascending: true }).limit(20);
+    // 4. 取最近 20 条历史（倒序取再翻转，确保包含刚插入的当前提问）
+    const { data: historyDesc } = await supabase.from("chat_messages")
+      .select("role, content").eq("session_id", sid).order("id", { ascending: false }).limit(20);
+    const history = (historyDesc || []).reverse();
     const ctx = context && context.trim() ? context : "未知（用户尚未同步学习进度）";
 
     // 5. 按通道调用上游（流式）

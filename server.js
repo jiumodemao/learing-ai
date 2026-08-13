@@ -36,15 +36,20 @@ const server = http.createServer((req, res) => {
   }
   if (urlPath === '/') urlPath = '/index.html';
 
-  // 安全防护：敏感目录一律 403
-  if (BLOCKED.some((b) => urlPath.startsWith(b))) {
+  // 先规范化再判断：防路径穿越（如 /js/../.secrets/xxx 必须归一后仍被拦截）
+  const filePath = path.normalize(path.join(ROOT, urlPath));
+  const rel = path.relative(ROOT, filePath);
+
+  // 越界（跳出项目根目录）→ 403
+  if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('403 Forbidden');
     return;
   }
 
-  const filePath = path.normalize(path.join(ROOT, urlPath));
-  if (!filePath.startsWith(ROOT)) {
+  // 敏感目录（用规范化后的相对路径判断，大小写不敏感）
+  const relSlash = '/' + rel.split(path.sep).join('/').toLowerCase() + '/';
+  if (BLOCKED.some((b) => relSlash.startsWith(b.toLowerCase()))) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('403 Forbidden');
     return;

@@ -30,25 +30,40 @@ Deno.serve(async (req) => {
     const { date, overview, items, quick } = await req.json();
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "缺少合法 date（YYYY-MM-DD）" }, 400);
 
+    // 形状校验（先校验再落库，防止 delete 后 insert 失败导致当天数据丢失）
+    const cleanUrls = (u: unknown) => (Array.isArray(u) ? u.map(String) : []);
+    const itemsArr = (Array.isArray(items) ? items : []).map((it: any) => ({
+      rank: Number(it.rank) || 1,
+      title: String(it.title || "").slice(0, 500),
+      summary: String(it.summary || "").slice(0, 2000),
+      why: String(it.why || "").slice(0, 2000),
+      urls: cleanUrls(it.urls).filter((u) => /^https?:\/\//i.test(u)),
+    }));
+    const quickArr = (Array.isArray(quick) ? quick : []).map((q: any) => ({
+      text: String(q.text || "").slice(0, 500),
+      urls: cleanUrls(q.urls).filter((u) => /^https?:\/\//i.test(u)),
+    }));
+    if (!itemsArr.length && !quickArr.length) return json({ error: "items 与 quick 不能同时为空" }, 400);
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false } }
     );
 
-    // 覆盖式写入当天日报
-    await supabase.from("news_digests").upsert({ news_date: date, overview: overview || "" });
-    await supabase.from("news_items").delete().eq("news_date", date);
+    // 覆盖式写入当天日报（先写新数据再删旧数据，失败时不丢当天内容）
     const rows = [
-      ...(items || []).map((it: any) => ({
+      ...itemsArr.map((it) => ({
         news_date: date, kind: "top", rank: it.rank, title: it.title,
-        summary: it.summary || "", why: it.why || "", urls: it.urls || [],
+        summary: it.summary, why: it.why, urls: it.urls,
       })),
-      ...(quick || []).map((q: any, i: number) => ({
-        news_date: date, kind: "quick", rank: i + 1, title: q.text, urls: q.urls || [],
+      ...quickArr.map((q, i: number) => ({
+        news_date: date, kind: "quick", rank: i + 1, title: q.text, urls: q.urls,
       })),
     ];
-    if (rows.length) await supabase.from("news_items").insert(rows);
+    await supabase.from("news_digests").upsert({ news_date: date, overview: String(overview || "").slice(0, 500) });
+    await supabase.from("news_items").delete().eq("news_date", date);
+    await supabase.from("news_items").insert(rows);
     return json({ ok: true, count: rows.length });
   } catch (e) {
     return json({ error: `服务异常：${String(e)}` }, 500);
