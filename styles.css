@@ -367,6 +367,65 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   color: #92400e;
 }
 
+/* ===== 学习路径页面流（多邻国式） ===== */
+.stage-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.stage-pct { font-size: 13px; font-weight: 700; color: var(--primary); }
+.stage-card .progress-bar { margin: 8px 0 4px; }
+
+.status-circle {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+.status-circle.done { background: var(--ok); color: #fff; }
+
+.progress-bar.mini { height: 5px; margin-top: 6px; background: #e8eaf2; }
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 0 12px;
+  cursor: pointer;
+}
+
+.lesson-page { padding: 20px; }
+.lesson-kicker { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+.lesson-page-title { font-size: 20px; line-height: 1.35; margin-bottom: 14px; }
+
+.terms-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.terms-title { font-size: 13px; font-weight: 700; color: #1d4ed8; margin-bottom: 6px; }
+.terms-box .md-body { font-size: 13.5px; }
+.terms-box .md-body p { margin: 3px 0; }
+
+.lesson-content { font-size: 15px; }
+.lesson-content p { margin: 10px 0; }
+
+.lesson-nav { display: flex; gap: 8px; margin-top: 18px; }
+.lesson-nav .btn { font-size: 13.5px; padding: 11px 6px; }
+.btn.ghost { background: #f1f2f8; color: var(--text); box-shadow: none; }
+.btn.ghost:disabled { opacity: .4; }
+
 /* ===== 知识库管理页 ===== */
 .admin-unit-list { list-style: none; }
 .admin-unit {

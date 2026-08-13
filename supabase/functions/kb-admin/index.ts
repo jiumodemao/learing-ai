@@ -42,10 +42,10 @@ Deno.serve(async (req) => {
     const action = body.action;
 
     if (action === "update_lesson") {
-      const { lessonId, title, content, task } = body;
+      const { lessonId, title, content, task, terms } = body;
       if (!lessonId) return json({ error: "缺少 lessonId" }, 400);
       const { error } = await supabase.from("lessons")
-        .update({ title, content, task }).eq("id", lessonId);
+        .update({ title, content, task, terms }).eq("id", lessonId);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }

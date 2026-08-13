@@ -156,39 +156,171 @@
       units: ['立项：定义付费 MVP', '冲刺 1：做出 MVP', '冲刺 2：找到前 10 个用户', '冲刺 3：第一笔收款', '迭代与放大', '复盘与规划'] },
   ];
 
-  function renderPath(root, stages) {
+  // ---------- 学习路径（多邻国式页面流 + 进度系统） ----------
+  let doneSet = new Set();
+  let curUnitPage = null; // { unit, lessons }
+
+  async function loadDoneSet() {
+    doneSet = new Set();
+    const s = getSupabase(), u = getCurrentUser();
+    if (s && u) {
+      const { data } = await s.from('user_progress').select('lesson_id').eq('user_id', u.id);
+      (data || []).forEach((r) => doneSet.add(r.lesson_id));
+    } else {
+      doneSet = new Set(storage.get('lesson-done', []));
+    }
+  }
+
+  async function markLessonDone(lessonId, done) {
+    const s = getSupabase(), u = getCurrentUser();
+    if (s && u) {
+      if (done) {
+        await s.from('user_progress').upsert(
+          { user_id: u.id, lesson_id: lessonId, status: 'done', done_at: new Date().toISOString() },
+          { onConflict: 'user_id,lesson_id' }
+        );
+      } else {
+        await s.from('user_progress').delete().eq('user_id', u.id).eq('lesson_id', lessonId);
+      }
+    } else {
+      const arr = storage.get('lesson-done', []);
+      storage.set('lesson-done', done ? [...arr, lessonId] : arr.filter((x) => x !== lessonId));
+    }
+    await loadDoneSet();
+  }
+
+  async function fetchPathData() {
+    const s = getSupabase(), u = getCurrentUser();
+    if (s && u) {
+      const [st, un, le] = await Promise.all([
+        s.from('stages').select('*').order('ord'),
+        s.from('units').select('*').order('ord'),
+        s.from('lessons').select('id,unit_id,ord,title').order('ord'),
+      ]);
+      return { stages: st.data || [], units: un.data || [], lessons: le.data || [], cloud: true };
+    }
+    return {
+      stages: PATH_DEMO.map((x) => ({ title: x.title, goal: x.goal, demoUnits: x.units })),
+      units: [], lessons: [], cloud: false,
+    };
+  }
+
+  // 页面 1：阶段列表（进度条 + 单元状态圈）
+  async function renderPath() {
+    const root = $('#path-root');
     root.innerHTML = '';
+    const { stages, units, lessons, cloud } = await fetchPathData();
+    await loadDoneSet();
     stages.forEach((st, i) => {
+      const stUnits = cloud ? units.filter((u) => u.stage_id === st.id) : [];
+      const stLessons = cloud ? lessons.filter((l) => stUnits.some((u) => u.id === l.unit_id)) : [];
+      const doneCount = stLessons.filter((l) => doneSet.has(l.id)).length;
+      const pct = stLessons.length ? Math.round((doneCount / stLessons.length) * 100) : 0;
       const card = document.createElement('div');
       card.className = 'card stage-card stage-c' + ((i % 5) + 1);
-      card.innerHTML = `<h2 class="stage-title">${st.title}</h2><p class="muted">${st.goal || ''}</p><ul class="unit-list"></ul>`;
+      card.innerHTML = `
+        <div class="stage-head"><h2 class="stage-title">${st.title}</h2><span class="stage-pct">${pct}%</span></div>
+        <p class="muted">${st.goal || ''}</p>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <ul class="unit-list"></ul>`;
       const ul = card.querySelector('.unit-list');
-      (st.units || []).forEach((un, j) => {
-        const li = document.createElement('li');
-        li.className = 'unit';
-        li.innerHTML = `<span class="unit-num">${j + 1}</span><span class="unit-main"><span class="unit-title">${un.title}</span>${un.description ? `<span class="unit-desc">${un.description}</span>` : ''}</span>`;
-        if (un.id) li.addEventListener('click', () => openUnit(un.id));
-        ul.appendChild(li);
-      });
+      if (cloud) {
+        stUnits.forEach((un, j) => {
+          const ls = lessons.filter((l) => l.unit_id === un.id);
+          const uDone = ls.filter((l) => doneSet.has(l.id)).length;
+          const allDone = ls.length > 0 && uDone === ls.length;
+          const li = document.createElement('li');
+          li.className = 'unit';
+          li.innerHTML = `
+            <span class="status-circle ${allDone ? 'done' : ''}">${allDone ? '✓' : (j + 1)}</span>
+            <span class="unit-main">
+              <span class="unit-title">${un.title}</span>
+              <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课` : ''}${un.description ? ' · ' + un.description : ''}</span>
+              <span class="progress-bar mini"><span class="progress-fill" style="width:${ls.length ? (uDone / ls.length) * 100 : 0}%"></span></span>
+            </span>`;
+          li.addEventListener('click', () => openUnitPage(un));
+          ul.appendChild(li);
+        });
+      } else {
+        (st.demoUnits || []).forEach((t, j) => {
+          const li = document.createElement('li');
+          li.className = 'unit';
+          li.innerHTML = `<span class="status-circle">${j + 1}</span><span class="unit-main"><span class="unit-title">${t}</span><span class="unit-desc">登录后解锁课程内容</span></span>`;
+          ul.appendChild(li);
+        });
+      }
       root.appendChild(card);
     });
   }
 
-  async function loadPath() {
+  // 页面 2：单元页（课程列表 + 状态）
+  async function openUnitPage(unit) {
+    curUnitPage = { unit, lessons: [] };
     const root = $('#path-root');
     const s = getSupabase(), u = getCurrentUser();
-    if (s && u) {
-      try {
-        const { data: stages } = await s.from('stages').select('*').order('ord');
-        const { data: units } = await s.from('units').select('*').order('ord');
-        renderPath(root, (stages || []).map((st) => ({
-          ...st,
-          units: (units || []).filter((x) => x.stage_id === st.id),
-        })));
-        return;
-      } catch { /* 失败则用演示数据 */ }
+    const { data } = (s && u) ? await s.from('lessons').select('*').eq('unit_id', unit.id).order('ord') : { data: [] };
+    curUnitPage.lessons = data || [];
+    const ls = curUnitPage.lessons;
+    const uDone = ls.filter((l) => doneSet.has(l.id)).length;
+    const pct = ls.length ? Math.round((uDone / ls.length) * 100) : 0;
+    root.innerHTML = `
+      <button class="back-btn" id="path-back-unit">← 返回学习路径</button>
+      <div class="card stage-card">
+        <div class="stage-head"><h2 class="stage-title">${unit.title}</h2><span class="stage-pct">${pct}%</span></div>
+        <p class="muted">${unit.description || ''}</p>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <ul class="unit-list"></ul>
+      </div>`;
+    const ul = root.querySelector('.unit-list');
+    if (!ls.length) {
+      ul.innerHTML = '<li class="unit"><span class="unit-main"><span class="unit-desc">本单元课程内容正在准备中，敬请期待</span></span></li>';
     }
-    renderPath(root, PATH_DEMO.map((st) => ({ title: st.title, goal: st.goal, units: st.units.map((t) => ({ title: t })) })));
+    ls.forEach((l, i) => {
+      const isDone = doneSet.has(l.id);
+      const li = document.createElement('li');
+      li.className = 'unit';
+      li.innerHTML = `
+        <span class="status-circle ${isDone ? 'done' : ''}">${isDone ? '✓' : (i + 1)}</span>
+        <span class="unit-main">
+          <span class="unit-title">第 ${l.ord} 课 · ${l.title}</span>
+          ${l.task ? `<span class="unit-desc">任务：${String(l.task).slice(0, 36)}…</span>` : ''}
+        </span>`;
+      li.addEventListener('click', () => openLessonPage(l, i, unit));
+      ul.appendChild(li);
+    });
+    root.querySelector('#path-back-unit').addEventListener('click', renderPath);
+    window.scrollTo(0, 0);
+  }
+
+  // 页面 3：上课页（讲义 + 术语词典 + 任务 + 上下课导航）
+  async function openLessonPage(lesson, idx, unit) {
+    const root = $('#path-root');
+    const ls = curUnitPage.lessons;
+    const prev = idx > 0 ? ls[idx - 1] : null;
+    const next = idx < ls.length - 1 ? ls[idx + 1] : null;
+    const isDone = doneSet.has(lesson.id);
+    root.innerHTML = `
+      <button class="back-btn" id="path-back-lesson">← 返回单元</button>
+      <div class="card lesson-page">
+        <div class="lesson-kicker">第 ${lesson.ord} 课 · ${unit.title}</div>
+        <h2 class="lesson-page-title">${lesson.title}</h2>
+        ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
+        <div class="lesson-content md-body">${lesson.content ? renderMD(lesson.content) : '<p class="muted">内容撰写中…</p>'}</div>
+        ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
+        <div class="lesson-nav">
+          <button class="btn ghost" id="prev-btn" ${prev ? '' : 'disabled'}>← 上一课</button>
+          <button class="btn primary" id="done-btn">${isDone ? '已完成 ✓' : '标记完成'}</button>
+          <button class="btn ghost" id="next-btn" ${next ? '' : 'disabled'}>下一课 →</button>
+        </div>
+      </div>`;
+    root.querySelector('#path-back-lesson').addEventListener('click', () => openUnitPage(unit));
+    root.querySelector('#done-btn').addEventListener('click', async () => {
+      await markLessonDone(lesson.id, !isDone);
+      openLessonPage(lesson, idx, unit);
+    });
+    if (prev) root.querySelector('#prev-btn').addEventListener('click', () => openLessonPage(prev, idx - 1, unit));
+    if (next) root.querySelector('#next-btn').addEventListener('click', () => openLessonPage(next, idx + 1, unit));
+    window.scrollTo(0, 0);
   }
 
   // Markdown 渲染（安全过滤）
@@ -199,41 +331,9 @@
     return String(t).replace(/</g, '&lt;');
   };
 
-  async function openUnit(unitId) {
-    const s = getSupabase();
-    if (!s) return;
-    $('#unit-modal').hidden = false;
-    $('#unit-title').textContent = '加载中…';
-    $('#unit-stage').textContent = '';
-    $('#unit-desc').textContent = '';
-    $('#unit-lessons').innerHTML = '<p class="muted">加载中…</p>';
-
-    const { data: unit } = await s.from('units').select('*, stages(title)').eq('id', unitId).maybeSingle();
-    $('#unit-title').textContent = unit?.title || '单元';
-    $('#unit-stage').textContent = unit?.stages?.title || '';
-    $('#unit-desc').textContent = unit?.description || '';
-
-    const { data: lessons } = await s.from('lessons').select('*').eq('unit_id', unitId).order('ord');
-    const box = $('#unit-lessons');
-    box.innerHTML = '';
-    if (!lessons || lessons.length === 0) {
-      box.innerHTML = '<p class="muted">讲义撰写中，敬请期待…</p>';
-      return;
-    }
-    lessons.forEach((l, i) => {
-      const div = document.createElement('div');
-      div.className = 'lesson';
-      div.innerHTML = `<div class="lesson-title">第 ${i + 1} 课 · ${l.title}</div>` +
-        (l.content ? `<div class="md-body">${renderMD(l.content)}</div>` : '<p class="muted">内容撰写中…</p>') +
-        (l.task ? `<div class="lesson-task"><b>动手任务：</b>${l.task}</div>` : '');
-      box.appendChild(div);
-    });
-  }
-  $('#unit-close').addEventListener('click', () => { $('#unit-modal').hidden = true; });
-  // 点遮罩关闭 / Esc 关闭（两个弹窗通用）
-  $('#unit-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.hidden = true; });
+  // Esc 关闭登录弹窗
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { $('#unit-modal').hidden = true; $('#auth-modal').hidden = true; }
+    if (e.key === 'Escape') { const m = $('#auth-modal'); if (m) m.hidden = true; }
   });
 
   // ---------- AI 助教（流式 + Markdown） ----------
@@ -403,7 +503,7 @@
     if (user && isOwner()) loadAdmin();
     loadTasks();
     updateStreak();
-    loadPath();
+    renderPath();
   };
 
   // ---------- 知识库管理（仅管理员） ----------
@@ -440,6 +540,7 @@
             d.innerHTML =
               `<label>第 ${l.ord} 课标题<input class="l-title" value="${escAttr(l.title)}"></label>` +
               `<label>讲义内容（支持 Markdown）<textarea class="l-content" rows="8">${escText(l.content)}</textarea></label>` +
+              `<label>术语小词典（每行一条，格式：术语：Token（词元）：解释…）<textarea class="l-terms" rows="3">${escText(l.terms)}</textarea></label>` +
               `<label>动手任务<input class="l-task" value="${escAttr(l.task)}"></label>` +
               `<button class="mini-btn save">保存本课</button><span class="save-msg"></span>`;
             box.appendChild(d);
@@ -451,6 +552,7 @@
                   action: 'update_lesson', lessonId: l.id,
                   title: d.querySelector('.l-title').value,
                   content: d.querySelector('.l-content').value,
+                  terms: d.querySelector('.l-terms').value,
                   task: d.querySelector('.l-task').value,
                 },
               });
@@ -478,6 +580,7 @@
         md += `\n## [${u.id}] ${u.title}\n`;
         (lessons || []).filter((l) => l.unit_id === u.id).forEach((l) => {
           md += `\n### 第${l.ord}课 · ${l.title}\n${l.content || ''}\n\n任务：${l.task || ''}\n`;
+          if (l.terms) md += `${l.terms.split('\n').map((t) => '术语：' + t.replace(/^术语[:：]\s*/, '')).join('\n')}\n`;
         });
       });
     });
@@ -492,7 +595,7 @@
   initAuth();
   loadTasks();
   updateStreak();
-  loadPath();
+  renderPath();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }

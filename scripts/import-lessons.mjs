@@ -21,7 +21,7 @@ for (const f of readdirSync(DIR).filter(x => x.endsWith('.md')).sort()) {
     }
     const lm = line.match(/^###\s+(.*)$/);
     if (lm) {
-      curLesson = { title: lm[1].trim().replace(/^第\d+课\s*[·．]\s*/, ''), content: '', task: '' };
+      curLesson = { title: lm[1].trim().replace(/^第\d+课\s*[·．]\s*/, ''), content: '', task: '', terms: '' };
       curUnit.lessons.push(curLesson);
       mode = 'content';
       continue;
@@ -32,9 +32,16 @@ for (const f of readdirSync(DIR).filter(x => x.endsWith('.md')).sort()) {
       mode = 'task';
       continue;
     }
+    const termLine = line.match(/^术语[:：]\s*(.*)$/);
+    if (termLine && curLesson) {
+      curLesson.terms += (curLesson.terms ? '\n' : '') + termLine[1];
+      mode = 'terms';
+      continue;
+    }
     if (!curLesson || !line) continue;
     if (mode === 'content') curLesson.content += (curLesson.content ? '\n' : '') + line;
-    else curLesson.task += (curLesson.task ? '\n' : '') + line;
+    else if (mode === 'task') curLesson.task += (curLesson.task ? '\n' : '') + line;
+    else curLesson.terms += (curLesson.terms ? '\n' : '') + line;
   }
 }
 
@@ -42,11 +49,11 @@ const esc = (s) => String(s).replace(/'/g, "''");
 const rows = [];
 for (const u of units) {
   u.lessons.forEach((l, i) => {
-    rows.push(`(${u.id},${i + 1},'${esc(l.title)}','${esc(l.content.trim())}','${esc(l.task.trim())}')`);
+    rows.push(`(${u.id},${i + 1},'${esc(l.title)}','${esc(l.content.trim())}','${esc(l.task.trim())}','${esc(l.terms.trim())}')`);
   });
 }
 
-const sqlInsert = `insert into lessons (unit_id, ord, title, content, task) values ${rows.join(',\n')};`;
+const sqlInsert = `insert into lessons (unit_id, ord, title, content, task, terms) values ${rows.join(',\n')};`;
 const api = async (query) => {
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',
