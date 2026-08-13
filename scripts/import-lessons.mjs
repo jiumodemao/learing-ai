@@ -8,7 +8,9 @@ const REF = 'fqaxzfsbqjaevoqnfddr';
 const units = [];
 let curUnit = null, curLesson = null, mode = 'content';
 
-for (const f of readdirSync(DIR).filter(x => x.endsWith('.md')).sort()) {
+// 可选参数：只导入指定文件（如 node import-lessons.mjs s1-会用AI.md），默认导入全部
+const only = process.argv[2] || '';
+for (const f of readdirSync(DIR).filter(x => x.endsWith('.md') && (!only || x === only)).sort()) {
   const lines = readFileSync(`${DIR}/${f}`, 'utf8').split('\n');
   for (const raw of lines) {
     const line = raw.trim();
@@ -65,9 +67,13 @@ const api = async (query) => {
   return text;
 };
 
-// 先清空再导入
-const r1 = await api('delete from lessons;');
-console.log('清空 lessons:', r1);
+// 先清空再导入（只导入单文件时，只清空该文件涉及的单元，不动其他）
+const ids = [...new Set(units.map((u) => u.id))];
+const delSql = only
+  ? `delete from lessons where unit_id in (${ids.join(',')});`
+  : 'delete from lessons;';
+const r1 = await api(delSql);
+console.log('清空:', r1);
 const r2 = await api(sqlInsert);
 console.log('导入完成:', r2);
 console.log(`共 ${units.length} 个单元 / ${rows.length} 课`);

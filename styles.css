@@ -426,6 +426,55 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 .btn.ghost { background: #f1f2f8; color: var(--text); box-shadow: none; }
 .btn.ghost:disabled { opacity: .4; }
 
+.lesson-bar { height: 6px; margin: 6px 0 12px; }
+
+/* 继续学习按钮与完成横幅 */
+.continue-btn { margin-bottom: 12px; }
+.unit-done-banner {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  padding: 12px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+/* 当前课高亮 */
+.unit.current { background: #eef2ff; border: 1px solid #c7d2fe; }
+.current-tag {
+  display: inline-block;
+  font-size: 11px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+
+/* 轻提示 Toast */
+.toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translate(-50%, -80px);
+  z-index: 9999;
+  background: linear-gradient(135deg, #1f2430, #4b5563);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: transform .3s ease;
+  max-width: 88vw;
+  text-align: center;
+}
+.toast.show { transform: translate(-50%, 0); }
+
 /* ===== 知识库管理页 ===== */
 .admin-unit-list { list-style: none; }
 .admin-unit {
