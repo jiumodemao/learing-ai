@@ -228,12 +228,61 @@
     };
   }
 
-  // 页面 1：阶段列表（进度条 + 单元状态圈）
+  // 页面 1：学习路径（书页式：一次只呈现一个阶段，页签切换 + 上下页翻动）
+  let pathStageIdx = parseInt(storage.get('path-stage', '0'), 10) || 0;
+
+  // 单个阶段卡片（st 需预带 pct / units / lessons 字段）
+  function buildStageCard(st, i) {
+    const card = document.createElement('div');
+    card.className = 'card stage-card stage-c' + ((i % 5) + 1);
+    card.innerHTML = `
+      <div class="stage-head"><h2 class="stage-title">${st.title}</h2><span class="stage-pct">${st.pct}%</span></div>
+      <p class="muted">${st.goal || ''}</p>
+      <div class="progress-bar"><div class="progress-fill" style="width:${st.pct}%"></div></div>
+      <ul class="unit-list"></ul>`;
+    const ul = card.querySelector('.unit-list');
+    st.units.forEach((un, j) => {
+      const li = document.createElement('li');
+      li.className = 'unit';
+      if (un.id) {
+        const ls = st.lessons.filter((l) => l.unit_id === un.id);
+        const uDone = ls.filter((l) => doneSet.has(l.id)).length;
+        const allDone = ls.length > 0 && uDone === ls.length;
+        li.innerHTML = `
+          <span class="unit-emoji ${allDone ? 'done' : ''}">${UNIT_EMOJI[un.id] || '📚'}${allDone ? '<i class="emoji-check">✓</i>' : ''}</span>
+          <span class="unit-main">
+            <span class="unit-title">${un.title}</span>
+            <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课 · 约 ${ls.length} 天` : ''}${un.description ? ' · ' + un.description : ''}</span>
+            <span class="progress-bar mini"><span class="progress-fill" style="width:${ls.length ? (uDone / ls.length) * 100 : 0}%"></span></span>
+          </span>
+          ${allDone ? '<span class="unit-state done">已完成</span>' : (uDone > 0 ? '<span class="unit-state">进行中</span>' : '')}`;
+        li.addEventListener('click', () => openUnitPage(un));
+      } else {
+        li.innerHTML = `<span class="unit-emoji">${UNIT_EMOJI[j + 1] || '📚'}</span><span class="unit-main"><span class="unit-title">${un.title}</span><span class="unit-desc">登录后解锁课程内容</span></span>`;
+      }
+      ul.appendChild(li);
+    });
+    return card;
+  }
+
   async function renderPath() {
     const root = $('#path-root');
     root.innerHTML = '';
     const { stages, units, lessons, cloud } = await fetchPathData();
     await loadDoneSet();
+
+    // 预处理阶段数据（进度 + 单元列表）
+    const stageData = stages.map((st) => {
+      const stUnits = cloud
+        ? units.filter((u) => u.stage_id === st.id)
+        : (st.demoUnits || []).map((t) => ({ title: t }));
+      const stLessons = cloud ? lessons.filter((l) => stUnits.some((u) => u.id === l.unit_id)) : [];
+      const doneCount = stLessons.filter((l) => doneSet.has(l.id)).length;
+      const pct = stLessons.length ? Math.round((doneCount / stLessons.length) * 100) : 0;
+      return { ...st, pct, units: stUnits, lessons: stLessons };
+    });
+    if (pathStageIdx >= stageData.length) pathStageIdx = 0;
+
     // 顶部总览卡：今日已学 + 总进度
     if (cloud && lessons.length) {
       const totalLessons = lessons.length;
@@ -246,46 +295,39 @@
         <div class="progress-bar"><div class="progress-fill" style="width:${overallPct}%"></div></div>`;
       root.appendChild(top);
     }
-    stages.forEach((st, i) => {
-      const stUnits = cloud ? units.filter((u) => u.stage_id === st.id) : [];
-      const stLessons = cloud ? lessons.filter((l) => stUnits.some((u) => u.id === l.unit_id)) : [];
-      const doneCount = stLessons.filter((l) => doneSet.has(l.id)).length;
-      const pct = stLessons.length ? Math.round((doneCount / stLessons.length) * 100) : 0;
-      const card = document.createElement('div');
-      card.className = 'card stage-card stage-c' + ((i % 5) + 1);
-      card.innerHTML = `
-        <div class="stage-head"><h2 class="stage-title">${st.title}</h2><span class="stage-pct">${pct}%</span></div>
-        <p class="muted">${st.goal || ''}</p>
-        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-        <ul class="unit-list"></ul>`;
-      const ul = card.querySelector('.unit-list');
-      if (cloud) {
-        stUnits.forEach((un, j) => {
-          const ls = lessons.filter((l) => l.unit_id === un.id);
-          const uDone = ls.filter((l) => doneSet.has(l.id)).length;
-          const allDone = ls.length > 0 && uDone === ls.length;
-          const li = document.createElement('li');
-          li.className = 'unit';
-          li.innerHTML = `
-            <span class="unit-emoji ${allDone ? 'done' : ''}">${UNIT_EMOJI[un.id] || '📚'}${allDone ? '<i class="emoji-check">✓</i>' : ''}</span>
-            <span class="unit-main">
-              <span class="unit-title">${un.title}</span>
-              <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课 · 约 ${ls.length} 天` : ''}${un.description ? ' · ' + un.description : ''}</span>
-              <span class="progress-bar mini"><span class="progress-fill" style="width:${ls.length ? (uDone / ls.length) * 100 : 0}%"></span></span>
-            </span>
-            ${allDone ? '<span class="unit-state done">已完成</span>' : (uDone > 0 ? '<span class="unit-state">进行中</span>' : '')}`;
-          li.addEventListener('click', () => openUnitPage(un));
-          ul.appendChild(li);
-        });
-      } else {
-        (st.demoUnits || []).forEach((t, j) => {
-          const li = document.createElement('li');
-          li.className = 'unit';
-          li.innerHTML = `<span class="unit-emoji">${UNIT_EMOJI[j + 1] || '📚'}</span><span class="unit-main"><span class="unit-title">${t}</span><span class="unit-desc">登录后解锁课程内容</span></span>`;
-          ul.appendChild(li);
-        });
-      }
-      root.appendChild(card);
+
+    // 阶段页签（书页导航）
+    const pills = document.createElement('div');
+    pills.className = 'stage-pills';
+    stageData.forEach((st, i) => {
+      const b = document.createElement('button');
+      b.className = 'stage-pill' + (i === pathStageIdx ? ' active' : '');
+      b.textContent = (st.title.match(/阶段[一二三四五]/) || [st.title])[0];
+      b.addEventListener('click', () => {
+        pathStageIdx = i;
+        storage.set('path-stage', String(i));
+        renderPath();
+      });
+      pills.appendChild(b);
+    });
+    root.appendChild(pills);
+
+    // 当前阶段卡片（只此一张）
+    root.appendChild(buildStageCard(stageData[pathStageIdx], pathStageIdx));
+
+    // 上下页翻动
+    const nav = document.createElement('div');
+    nav.className = 'stage-nav';
+    nav.innerHTML = `
+      <button class="btn ghost" id="stage-prev" ${pathStageIdx <= 0 ? 'disabled' : ''}>← 上一阶段</button>
+      <span class="stage-pos">第 ${pathStageIdx + 1} / ${stageData.length} 阶段</span>
+      <button class="btn ghost" id="stage-next" ${pathStageIdx >= stageData.length - 1 ? 'disabled' : ''}>下一阶段 →</button>`;
+    root.appendChild(nav);
+    nav.querySelector('#stage-prev').addEventListener('click', () => {
+      if (pathStageIdx > 0) { pathStageIdx--; storage.set('path-stage', String(pathStageIdx)); renderPath(); }
+    });
+    nav.querySelector('#stage-next').addEventListener('click', () => {
+      if (pathStageIdx < stageData.length - 1) { pathStageIdx++; storage.set('path-stage', String(pathStageIdx)); renderPath(); }
     });
   }
 
@@ -601,6 +643,65 @@
     updateStreak();
     renderPath();
   };
+
+  // ---------- 热点日报 ----------
+  let newsDate = null;
+
+  async function loadNews(dateStr) {
+    const root = $('#news-root');
+    const s = getSupabase();
+    if (!s) { root.innerHTML = '<div class="card"><p class="muted">云端未配置</p></div>'; return; }
+    if (!dateStr) {
+      const { data } = await s.from('news_digests').select('news_date').order('news_date', { ascending: false }).limit(1);
+      newsDate = data?.[0]?.news_date || null;
+    } else {
+      newsDate = dateStr;
+    }
+    if (!newsDate) {
+      root.innerHTML = '<div class="card"><p class="muted">第一期日报还没发布，敬请期待。每天 11 点自动更新。</p></div>';
+      return;
+    }
+    const { data: dig } = await s.from('news_digests').select('*').eq('news_date', newsDate).maybeSingle();
+    const { data: items } = await s.from('news_items').select('*').eq('news_date', newsDate).order('kind').order('rank');
+    const tops = (items || []).filter((i) => i.kind === 'top');
+    const quicks = (items || []).filter((i) => i.kind === 'quick');
+    const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
+
+    root.innerHTML = `
+      <div class="card hero-card">
+        <div class="news-date-nav">
+          <button class="mini-btn" id="news-prev">← 前一天</button>
+          <div class="news-date-title">AI 热点日报 · ${fmt(newsDate)}</div>
+          <button class="mini-btn" id="news-next">后一天 →</button>
+        </div>
+        ${dig?.overview ? `<p class="news-overview">${escText(dig.overview)}</p>` : ''}
+      </div>
+      ${tops.map((it) => `
+        <div class="card news-card">
+          <div class="news-card-head"><span class="news-rank">TOP ${it.rank}</span><span class="news-title">${escText(it.title)}</span></div>
+          ${it.summary ? `<p class="news-summary">${escText(it.summary)}</p>` : ''}
+          ${it.why ? `<div class="news-why"><b>为什么重要：</b>${escText(it.why)}</div>` : ''}
+          ${(it.urls || []).length ? `<div class="news-links">${it.urls.map((u) => `<a href="${u}" target="_blank" rel="noopener">${String(u).replace(/^https?:\/\//, '').slice(0, 38)}…</a>`).join(' ')}</div>` : ''}
+        </div>`).join('')}
+      ${quicks.length ? `
+        <div class="card">
+          <h2 class="card-title">快讯</h2>
+          <ul class="quick-list">
+            ${quicks.map((q) => `<li>${escText(q.title)}${(q.urls || []).length ? ` <a href="${q.urls[0]}" target="_blank" rel="noopener">[来源]</a>` : ''}</li>`).join('')}
+          </ul>
+        </div>` : ''}`;
+    root.querySelector('#news-prev').addEventListener('click', () => {
+      const d = new Date(newsDate + 'T00:00:00'); d.setDate(d.getDate() - 1);
+      loadNews(d.toISOString().slice(0, 10));
+    });
+    root.querySelector('#news-next').addEventListener('click', () => {
+      const d = new Date(newsDate + 'T00:00:00'); d.setDate(d.getDate() + 1);
+      loadNews(d.toISOString().slice(0, 10));
+    });
+    window.scrollTo(0, 0);
+  }
+  // 首次进入热点页自动加载（重复点击刷新）
+  document.querySelector('.tab[data-tab="news"]').addEventListener('click', () => loadNews());
 
   // ---------- 知识库管理（仅管理员） ----------
   const isOwner = () => getCurrentUser()?.id === APP_CONFIG.ADMIN_USER_ID;
