@@ -468,6 +468,85 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   vertical-align: 2px;
 }
 
+/* 单元卡片图标化 */
+.unit-emoji {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+  font-size: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-top: 2px;
+}
+.unit-emoji.done { background: linear-gradient(135deg, #ecfdf5, #d1fae5); }
+.emoji-check {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.unit-state {
+  flex-shrink: 0;
+  font-size: 11px;
+  background: #eef2ff;
+  color: var(--primary);
+  padding: 2px 9px;
+  border-radius: 999px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+.unit-state.done { background: #ecfdf5; color: var(--ok); }
+
+/* 小测验 */
+.quiz-box {
+  margin-top: 16px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+.quiz-title { font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+.quiz-q { font-size: 14.5px; font-weight: 600; margin-bottom: 10px; }
+.quiz-opts { display: flex; flex-direction: column; gap: 8px; }
+.quiz-opt {
+  text-align: left;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.quiz-opt:hover { border-color: var(--primary); background: #eef2ff; }
+.quiz-opt.correct { border-color: var(--ok); background: #ecfdf5; color: #065f46; }
+.quiz-opt.wrong { border-color: #dc2626; background: #fef2f2; color: #991b1b; }
+.quiz-result { margin-top: 10px; font-size: 13.5px; font-weight: 600; }
+.quiz-explain {
+  margin-top: 6px;
+  font-weight: 400;
+  color: #4b5563;
+  background: #fff;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
 /* 轻提示 Toast */
 .toast {
   position: fixed;

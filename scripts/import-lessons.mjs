@@ -23,10 +23,23 @@ for (const f of readdirSync(DIR).filter(x => x.endsWith('.md') && (!only || x ==
     }
     const lm = line.match(/^###\s+(.*)$/);
     if (lm) {
-      curLesson = { title: lm[1].trim().replace(/^第\d+课\s*[·．]\s*/, ''), content: '', task: '', terms: '' };
+      curLesson = { title: lm[1].trim().replace(/^第\d+课\s*[·．]\s*/, ''), content: '', task: '', terms: '', quizLines: [] };
       curUnit.lessons.push(curLesson);
       mode = 'content';
       continue;
+    }
+    // 测验块：以「测验：」开头，收集 Q:/A:/B:/C:/答案:/解析: 行
+    if (line === '测验：' && curLesson) {
+      mode = 'quiz';
+      continue;
+    }
+    if (mode === 'quiz' && curLesson) {
+      if (/^(Q|A|B|C|D|答案|解析)[:：]/.test(line)) {
+        curLesson.quizLines.push(line);
+        continue;
+      }
+      if (!line) continue; // 测验块内空行忽略
+      mode = 'content'; // 遇到其他内容视为测验块结束
     }
     const tm = line.match(/^任务[:：]\s*(.*)$/);
     if (tm && curLesson) {
@@ -48,14 +61,27 @@ for (const f of readdirSync(DIR).filter(x => x.endsWith('.md') && (!only || x ==
 }
 
 const esc = (s) => String(s).replace(/'/g, "''");
+const parseQuiz = (lines) => {
+  if (!lines.length) return null;
+  const get = (key) => (lines.find((l) => l.startsWith(key + ':')) || '').slice(key.length + 1).trim();
+  const q = get('Q');
+  if (!q) return null;
+  const o = ['A', 'B', 'C', 'D'].map((k) => get(k)).filter(Boolean);
+  const ansLetter = get('答案');
+  const a = ['A', 'B', 'C', 'D'].indexOf(ansLetter);
+  const e = get('解析');
+  if (o.length < 2 || a < 0) return null;
+  return { q, o, a, e };
+};
 const rows = [];
 for (const u of units) {
   u.lessons.forEach((l, i) => {
-    rows.push(`(${u.id},${i + 1},'${esc(l.title)}','${esc(l.content.trim())}','${esc(l.task.trim())}','${esc(l.terms.trim())}')`);
+    const quiz = parseQuiz(l.quizLines);
+    rows.push(`(${u.id},${i + 1},'${esc(l.title)}','${esc(l.content.trim())}','${esc(l.task.trim())}','${esc(l.terms.trim())}',${quiz ? `'${esc(JSON.stringify(quiz))}'` : 'null'}::jsonb)`);
   });
 }
 
-const sqlInsert = `insert into lessons (unit_id, ord, title, content, task, terms) values ${rows.join(',\n')};`;
+const sqlInsert = `insert into lessons (unit_id, ord, title, content, task, terms, quiz) values ${rows.join(',\n')};`;
 const api = async (query) => {
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',

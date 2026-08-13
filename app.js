@@ -157,6 +157,14 @@
   ];
 
   // ---------- 学习路径（多邻国式页面流 + 进度系统） ----------
+  // 单元图标（按 unit_id 索引，让卡片不再单调）
+  const UNIT_EMOJI = {
+    1: '🤖', 2: '💬', 3: '✍️', 4: '📊', 5: '🔍', 6: '🎨', 7: '🔁', 8: '🧠',
+    9: '🧩', 10: '🏋️', 11: '🌍', 12: '⚠️', 13: '🎯', 14: '🦾', 15: '💰', 16: '🛡️',
+    17: '💻', 18: '🔌', 19: '🛠️', 20: '🗄️', 21: '📱', 22: '⚙️', 23: '📚', 24: '🖼️', 25: '🚀', 26: '🏗️',
+    27: '🗺️', 28: '🔬', 29: '💼', 30: '📣', 31: '🔧', 32: '🤝', 33: '⭐', 34: '🧮',
+    35: '🏁', 36: '⚡', 37: '👥', 38: '💵', 39: '📈', 40: '🧭',
+  };
   let doneSet = new Set();
   let todayDoneCount = 0;
   let curUnitPage = null; // { unit, lessons }
@@ -259,12 +267,13 @@
           const li = document.createElement('li');
           li.className = 'unit';
           li.innerHTML = `
-            <span class="status-circle ${allDone ? 'done' : ''}">${allDone ? '✓' : (j + 1)}</span>
+            <span class="unit-emoji ${allDone ? 'done' : ''}">${UNIT_EMOJI[un.id] || '📚'}${allDone ? '<i class="emoji-check">✓</i>' : ''}</span>
             <span class="unit-main">
               <span class="unit-title">${un.title}</span>
-              <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课` : ''}${un.description ? ' · ' + un.description : ''}</span>
+              <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课 · 约 ${ls.length} 天` : ''}${un.description ? ' · ' + un.description : ''}</span>
               <span class="progress-bar mini"><span class="progress-fill" style="width:${ls.length ? (uDone / ls.length) * 100 : 0}%"></span></span>
-            </span>`;
+            </span>
+            ${allDone ? '<span class="unit-state done">已完成</span>' : (uDone > 0 ? '<span class="unit-state">进行中</span>' : '')}`;
           li.addEventListener('click', () => openUnitPage(un));
           ul.appendChild(li);
         });
@@ -272,7 +281,7 @@
         (st.demoUnits || []).forEach((t, j) => {
           const li = document.createElement('li');
           li.className = 'unit';
-          li.innerHTML = `<span class="status-circle">${j + 1}</span><span class="unit-main"><span class="unit-title">${t}</span><span class="unit-desc">登录后解锁课程内容</span></span>`;
+          li.innerHTML = `<span class="unit-emoji">${UNIT_EMOJI[j + 1] || '📚'}</span><span class="unit-main"><span class="unit-title">${t}</span><span class="unit-desc">登录后解锁课程内容</span></span>`;
           ul.appendChild(li);
         });
       }
@@ -346,6 +355,15 @@
         ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
         <div class="lesson-content md-body">${lesson.content ? renderMD(lesson.content) : '<p class="muted">内容撰写中…</p>'}</div>
         ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
+        ${lesson.quiz ? `
+        <div class="quiz-box">
+          <div class="quiz-title">📝 小测验</div>
+          <div class="quiz-q">${escText(lesson.quiz.q)}</div>
+          <div class="quiz-opts">
+            ${lesson.quiz.o.map((opt, i) => `<button class="quiz-opt" data-i="${i}"><b>${['A', 'B', 'C', 'D'][i]}.</b> ${escText(opt)}</button>`).join('')}
+          </div>
+          <div class="quiz-result"></div>
+        </div>` : ''}
         <div class="lesson-nav">
           <button class="btn ghost" id="prev-btn" ${prev ? '' : 'disabled'}>← 上一课</button>
           <button class="btn primary" id="done-btn">${isDone ? '已完成 ✓' : '标记完成'}</button>
@@ -369,6 +387,24 @@
         openLessonPage(lesson, idx, unit);
       }
     });
+    // 小测验交互：点选项立即判分并显示解析
+    const quizBox = root.querySelector('.quiz-box');
+    if (quizBox && lesson.quiz) {
+      const result = quizBox.querySelector('.quiz-result');
+      quizBox.querySelectorAll('.quiz-opt').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (quizBox.classList.contains('answered')) return;
+          quizBox.classList.add('answered');
+          const i = +btn.dataset.i;
+          const correct = i === lesson.quiz.a;
+          btn.classList.add(correct ? 'correct' : 'wrong');
+          if (!correct) quizBox.querySelector(`.quiz-opt[data-i="${lesson.quiz.a}"]`).classList.add('correct');
+          result.innerHTML =
+            (correct ? '✅ 答对了！' : '❌ 再想想——正确答案是 ' + ['A', 'B', 'C', 'D'][lesson.quiz.a] + '。') +
+            (lesson.quiz.e ? `<div class="quiz-explain">${escText(lesson.quiz.e)}</div>` : '');
+        });
+      });
+    }
     if (prev) root.querySelector('#prev-btn').addEventListener('click', () => openLessonPage(prev, idx - 1, unit));
     if (next) root.querySelector('#next-btn').addEventListener('click', () => openLessonPage(next, idx + 1, unit));
     window.scrollTo(0, 0);
