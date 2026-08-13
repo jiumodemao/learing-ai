@@ -1,5 +1,5 @@
 // Service Worker - 骨架版离线缓存
-const CACHE = 'ai-learning-v1';
+const CACHE = 'ai-learning-v2';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './auth.js', './config.js', './debug.js', './js/supabase.min.js', './js/marked.min.js', './js/purify.min.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {

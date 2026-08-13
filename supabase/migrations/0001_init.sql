@@ -157,3 +157,35 @@ insert into units (stage_id, ord, title, description) values
 (5,4,'冲刺 3：第一笔收款','打通收钱这件事，哪怕 1 块钱'),
 (5,5,'迭代与放大','反馈→改进→提价/扩渠道'),
 (5,6,'复盘与规划','数据复盘；下一步：副业/全职/求职');
+
+-- ===== 2026-08-13 演进补丁（与当前生产库一致） =====
+-- 术语词典 + 小测验
+alter table lessons add column if not exists terms text;
+alter table lessons add column if not exists quiz jsonb;
+
+-- 课程 ID 稳定（导入 upsert 依赖）：同一单元内课程序号唯一
+alter table lessons add constraint lessons_unit_ord_unique unique (unit_id, ord);
+
+-- 热点日报（新闻 Agent 迁移进多AI）
+create table if not exists news_digests (
+  news_date date primary key,
+  overview text,
+  created_at timestamptz default now()
+);
+
+create table if not exists news_items (
+  id bigint generated always as identity primary key,
+  news_date date not null references news_digests(news_date) on delete cascade,
+  kind text not null default 'top',      -- top=主榜 | quick=快讯
+  rank int not null,
+  title text not null,
+  summary text,
+  why text,
+  urls jsonb default '[]',
+  unique (news_date, kind, rank)
+);
+
+alter table news_digests enable row level security;
+alter table news_items enable row level security;
+create policy "热点公开读" on news_digests for select using (true);
+create policy "热点公开读" on news_items for select using (true);

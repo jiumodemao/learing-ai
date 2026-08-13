@@ -240,8 +240,8 @@
     const card = document.createElement('div');
     card.className = 'card stage-card stage-c' + ((i % 5) + 1);
     card.innerHTML = `
-      <div class="stage-head"><h2 class="stage-title">${st.title}</h2><span class="stage-pct">${st.pct}%</span></div>
-      <p class="muted">${st.goal || ''}</p>
+      <div class="stage-head"><h2 class="stage-title">${escText(st.title)}</h2><span class="stage-pct">${st.pct}%</span></div>
+      <p class="muted">${escText(st.goal || '')}</p>
       <div class="progress-bar"><div class="progress-fill" style="width:${st.pct}%"></div></div>
       <ul class="unit-list"></ul>`;
     const ul = card.querySelector('.unit-list');
@@ -255,8 +255,8 @@
         li.innerHTML = `
           <span class="unit-emoji ${allDone ? 'done' : ''}">${UNIT_EMOJI[un.id] || '📚'}${allDone ? '<i class="emoji-check">✓</i>' : ''}</span>
           <span class="unit-main">
-            <span class="unit-title">${un.title}</span>
-            <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课 · 约 ${ls.length} 天` : ''}${un.description ? ' · ' + un.description : ''}</span>
+            <span class="unit-title">${escText(un.title)}</span>
+            <span class="unit-desc">${ls.length ? `${uDone}/${ls.length} 课 · 约 ${ls.length} 天` : ''}${un.description ? ' · ' + escText(un.description) : ''}</span>
             <span class="progress-bar mini"><span class="progress-fill" style="width:${ls.length ? (uDone / ls.length) * 100 : 0}%"></span></span>
           </span>
           ${allDone ? '<span class="unit-state done">已完成</span>' : (uDone > 0 ? '<span class="unit-state">进行中</span>' : '')}`;
@@ -352,11 +352,11 @@
     root.innerHTML = `
       <button class="back-btn" id="path-back-unit">← 返回学习路径</button>
       ${firstUndone
-        ? `<button class="btn primary continue-btn" id="continue-btn">▶ 继续学习：第 ${firstUndone.ord} 课 · ${firstUndone.title}</button>`
+        ? `<button class="btn primary continue-btn" id="continue-btn">▶ 继续学习：第 ${firstUndone.ord} 课 · ${escText(firstUndone.title)}</button>`
         : `<div class="unit-done-banner">🎉 本单元已全部完成！</div>`}
       <div class="card stage-card">
-        <div class="stage-head"><h2 class="stage-title">${unit.title}</h2><span class="stage-pct">${pct}%</span></div>
-        <p class="muted">${unit.description || ''}</p>
+        <div class="stage-head"><h2 class="stage-title">${escText(unit.title)}</h2><span class="stage-pct">${pct}%</span></div>
+        <p class="muted">${escText(unit.description || '')}</p>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         <ul class="unit-list"></ul>
       </div>`;
@@ -372,8 +372,8 @@
       li.innerHTML = `
         <span class="status-circle ${isDone ? 'done' : ''}">${isDone ? '✓' : (i + 1)}</span>
         <span class="unit-main">
-          <span class="unit-title">第 ${l.ord} 课 · ${l.title}${isCurrent ? '<span class="current-tag">当前</span>' : ''}</span>
-          ${l.task ? `<span class="unit-desc">任务：${String(l.task).slice(0, 36)}…</span>` : ''}
+          <span class="unit-title">第 ${l.ord} 课 · ${escText(l.title)}${isCurrent ? '<span class="current-tag">当前</span>' : ''}</span>
+          ${l.task ? `<span class="unit-desc">任务：${escText(String(l.task).slice(0, 36))}…</span>` : ''}
         </span>`;
       li.addEventListener('click', () => openLessonPage(l, i, unit));
       ul.appendChild(li);
@@ -419,10 +419,10 @@
     const showQuiz = mode === 'quiz' && lesson.quiz;
 
     const readingPart = `
-      <h2 class="lesson-page-title">${lesson.title}</h2>
+      <h2 class="lesson-page-title">${escText(lesson.title)}</h2>
       ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
       <div class="lesson-content">${renderLessonContent(lesson.content)}</div>
-      ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
+      ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${escText(lesson.task)}</div>` : ''}
       ${!showQuiz && lesson.quiz ? `<button class="btn primary quiz-entry" id="quiz-entry">📝 学完了？来做道小测验 →</button>` : ''}`;
 
     const quizPart = `
@@ -439,7 +439,7 @@
     root.innerHTML = `
       <button class="back-btn" id="path-back-lesson">← 返回单元</button>
       <div class="card lesson-page">
-        <div class="lesson-kicker">第 ${idx + 1} / ${ls.length} 课 · ${unit.title}</div>
+        <div class="lesson-kicker">第 ${idx + 1} / ${ls.length} 课 · ${escText(unit.title)}</div>
         <div class="progress-bar lesson-bar"><div class="progress-fill" style="width:${unitPct}%"></div></div>
         ${showQuiz ? quizPart : readingPart}
         <div class="lesson-nav">
@@ -725,13 +725,13 @@
           <div class="news-card-head"><span class="news-rank">TOP ${it.rank}</span><span class="news-title">${escText(it.title)}</span></div>
           ${it.summary ? `<p class="news-summary">${escText(it.summary)}</p>` : ''}
           ${it.why ? `<div class="news-why"><b>为什么重要：</b>${escText(it.why)}</div>` : ''}
-          ${(it.urls || []).length ? `<div class="news-links">${it.urls.map((u) => `<a href="${u}" target="_blank" rel="noopener">${String(u).replace(/^https?:\/\//, '').slice(0, 38)}…</a>`).join(' ')}</div>` : ''}
+          ${(it.urls || []).length ? `<div class="news-links">${it.urls.map((u) => `<a href="${escAttr(u)}" target="_blank" rel="noopener">${escText(String(u).replace(/^https?:\/\//, '').slice(0, 38))}…</a>`).join(' ')}</div>` : ''}
         </div>`).join('')}
       ${quicks.length ? `
         <div class="card">
           <h2 class="card-title">快讯</h2>
           <ul class="quick-list">
-            ${quicks.map((q) => `<li>${escText(q.title)}${(q.urls || []).length ? ` <a href="${q.urls[0]}" target="_blank" rel="noopener">[来源]</a>` : ''}</li>`).join('')}
+            ${quicks.map((q) => `<li>${escText(q.title)}${(q.urls || []).length ? ` <a href="${escAttr(q.urls[0])}" target="_blank" rel="noopener">[来源]</a>` : ''}</li>`).join('')}
           </ul>
         </div>` : ''}`;
     root.querySelector('#news-prev').addEventListener('click', () => {
@@ -749,8 +749,8 @@
 
   // ---------- 知识库管理（仅管理员） ----------
   const isOwner = () => getCurrentUser()?.id === APP_CONFIG.ADMIN_USER_ID;
-  const escAttr = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  const escText = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const escAttr = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\$\{/g, '&#36;{');
+  const escText = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\$\{/g, '&#36;{');
 
   async function loadAdmin() {
     const root = $('#admin-root');
