@@ -398,10 +398,95 @@
         { onConflict: 'id', ignoreDuplicates: true }
       );
     }
+    // 知识库管理入口：仅管理员可见
+    $('#admin-nav').hidden = !(user && isOwner());
+    if (user && isOwner()) loadAdmin();
     loadTasks();
     updateStreak();
     loadPath();
   };
+
+  // ---------- 知识库管理（仅管理员） ----------
+  const isOwner = () => getCurrentUser()?.id === APP_CONFIG.ADMIN_USER_ID;
+  const escAttr = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const escText = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+  async function loadAdmin() {
+    const root = $('#admin-root');
+    const s = getSupabase();
+    if (!s || !isOwner()) { root.innerHTML = ''; return; }
+    const { data: stages } = await s.from('stages').select('*').order('ord');
+    const { data: units } = await s.from('units').select('*').order('ord');
+    const { data: lessons } = await s.from('lessons').select('*').order('unit_id, ord');
+    root.innerHTML = '';
+    (stages || []).forEach((st) => {
+      const card = document.createElement('div');
+      card.className = 'card stage-card stage-c' + (((st.ord - 1) % 5) + 1);
+      card.innerHTML = `<h2 class="stage-title">${st.title}</h2><ul class="admin-unit-list"></ul>`;
+      const ul = card.querySelector('ul');
+      (units || []).filter((u) => u.stage_id === st.id).forEach((u) => {
+        const li = document.createElement('li');
+        li.className = 'admin-unit';
+        li.innerHTML = `<div class="admin-unit-head"><span class="admin-unit-title">${u.title}</span><button class="mini-btn">编辑课程</button></div><div class="admin-lessons"></div>`;
+        const btn = li.querySelector('.mini-btn');
+        const box = li.querySelector('.admin-lessons');
+        btn.addEventListener('click', () => {
+          if (box.classList.contains('open')) { box.classList.remove('open'); box.innerHTML = ''; return; }
+          const ls = (lessons || []).filter((l) => l.unit_id === u.id);
+          box.innerHTML = '';
+          ls.forEach((l) => {
+            const d = document.createElement('div');
+            d.className = 'admin-lesson';
+            d.innerHTML =
+              `<label>第 ${l.ord} 课标题<input class="l-title" value="${escAttr(l.title)}"></label>` +
+              `<label>讲义内容（支持 Markdown）<textarea class="l-content" rows="8">${escText(l.content)}</textarea></label>` +
+              `<label>动手任务<input class="l-task" value="${escAttr(l.task)}"></label>` +
+              `<button class="mini-btn save">保存本课</button><span class="save-msg"></span>`;
+            box.appendChild(d);
+            d.querySelector('.save').addEventListener('click', async () => {
+              const msg = d.querySelector('.save-msg');
+              msg.textContent = '保存中…';
+              const { error } = await s.functions.invoke('kb-admin', {
+                body: {
+                  action: 'update_lesson', lessonId: l.id,
+                  title: d.querySelector('.l-title').value,
+                  content: d.querySelector('.l-content').value,
+                  task: d.querySelector('.l-task').value,
+                },
+              });
+              msg.textContent = error ? ('失败：' + error.message) : '已保存 ✓';
+            });
+          });
+          box.classList.add('open');
+        });
+        ul.appendChild(li);
+      });
+      root.appendChild(card);
+    });
+  }
+
+  // 导出知识库为 md 文件（与本地 docs/knowledge-base 格式一致）
+  $('#kb-export').addEventListener('click', async () => {
+    const s = getSupabase();
+    const { data: stages } = await s.from('stages').select('*').order('ord');
+    const { data: units } = await s.from('units').select('*').order('ord');
+    const { data: lessons } = await s.from('lessons').select('*').order('unit_id, ord');
+    let md = '# 多AI 知识库（管理页导出）\n';
+    (stages || []).forEach((st) => {
+      md += `\n# ${st.title}\n`;
+      (units || []).filter((u) => u.stage_id === st.id).forEach((u) => {
+        md += `\n## [${u.id}] ${u.title}\n`;
+        (lessons || []).filter((l) => l.unit_id === u.id).forEach((l) => {
+          md += `\n### 第${l.ord}课 · ${l.title}\n${l.content || ''}\n\n任务：${l.task || ''}\n`;
+        });
+      });
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'knowledge-base-export.md';
+    a.click();
+  });
 
   // ---------- 启动 ----------
   initAuth();
