@@ -1,0 +1,12 @@
+# 密钥与本地敏感文件（绝不提交）
+.secrets/
+
+# 课程知识库：用户私产，只在本地编辑，不上传 GitHub
+docs/knowledge-base/
+
+# 依赖与临时文件
+node_modules/
+*.log
+desktop.ini
+Thumbs.db
+.DS_Store
