@@ -432,7 +432,23 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 .terms-box .md-body p { margin: 3px 0; }
 
 .lesson-content { font-size: 15px; }
-.lesson-content p { margin: 10px 0; }
+.lesson-content p { margin: 12px 0; line-height: 1.85; }
+.lesson-content .md-body + .md-body, .lesson-content .lc-block + .md-body, .lesson-content .md-body + .lc-block { margin-top: 14px; }
+
+/* 讲义分块卡片：对话示例/误区/技巧/场景 */
+.lc-block { border-radius: 13px; padding: 13px 15px; margin: 14px 0; }
+.lc-label { font-size: 12.5px; font-weight: 700; margin-bottom: 7px; }
+.lc-block p { margin: 6px 0; }
+.lc-demo { background: #eff6ff; border: 1px solid #bfdbfe; }
+.lc-demo .lc-label { color: #1d4ed8; }
+.lc-pit { background: #fffbeb; border: 1px solid #fde68a; }
+.lc-pit .lc-label { color: #92400e; }
+.lc-tip { background: #ecfdf5; border: 1px solid #a7f3d0; }
+.lc-tip .lc-label { color: #065f46; }
+.lc-life { background: #f5f3ff; border: 1px solid #ddd6fe; }
+.lc-life .lc-label { color: #6d28d9; }
+.lc-cmp { background: #f8fafc; border: 1px dashed var(--line); }
+.lc-cmp .lc-label { color: #475569; }
 
 .lesson-nav { display: flex; gap: 8px; margin-top: 18px; }
 .lesson-nav .btn { font-size: 13.5px; padding: 11px 6px; }

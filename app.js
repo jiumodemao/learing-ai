@@ -387,6 +387,27 @@
     window.scrollTo(0, 0);
   }
 
+  // 讲义内容分块渲染：把长正文按"对话示例/误区/技巧/场景"切成彩色卡片，告别文字墙
+  const LC_STYLES = {
+    '完整对话示例': { cls: 'lc-demo', label: '💬 对话示例' },
+    '两个常见误区': { cls: 'lc-pit', label: '⚠️ 常见误区' },
+    '进阶技巧': { cls: 'lc-tip', label: '💡 进阶技巧' },
+    '生活化场景': { cls: 'lc-life', label: '🏠 生活化场景' },
+    '效果对比': { cls: 'lc-cmp', label: '📊 效果对比' },
+  };
+  function renderLessonContent(text) {
+    if (!text) return '<p class="muted">内容撰写中…</p>';
+    const parts = String(text).split(/(?=完整对话示例[：:]|两个常见误区[：:]|进阶技巧[：:]|生活化场景[：:]|效果对比[：:])/);
+    return parts.map((seg) => {
+      const m = seg.match(/^(完整对话示例|两个常见误区|进阶技巧|生活化场景|效果对比)[：:]\s*/);
+      if (m) {
+        const st = LC_STYLES[m[1]];
+        return `<div class="lc-block ${st.cls}"><div class="lc-label">${st.label}</div><div class="md-body">${renderMD(seg.slice(m[0].length))}</div></div>`;
+      }
+      return `<div class="md-body">${renderMD(seg)}</div>`;
+    }).join('');
+  }
+
   // 页面 3：上课页（先阅读后测验，两步分离；讲义 + 术语 + 任务 + 上下课导航）
   async function openLessonPage(lesson, idx, unit, mode = 'read') {
     const root = $('#path-root');
@@ -400,7 +421,7 @@
     const readingPart = `
       <h2 class="lesson-page-title">${lesson.title}</h2>
       ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
-      <div class="lesson-content md-body">${lesson.content ? renderMD(lesson.content) : '<p class="muted">内容撰写中…</p>'}</div>
+      <div class="lesson-content">${renderLessonContent(lesson.content)}</div>
       ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
       ${!showQuiz && lesson.quiz ? `<button class="btn primary quiz-entry" id="quiz-entry">📝 学完了？来做道小测验 →</button>` : ''}`;
 
