@@ -17,12 +17,16 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.65;
-  padding-bottom: 84px; /* 给底部导航留空间 */
+  /* 底部导航 + iOS 安全区，防止内容被遮/跳动 */
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  overscroll-behavior-y: none;
 }
 
 /* ===== 顶部渐变头部 ===== */
@@ -154,6 +158,10 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   transition: background .15s;
 }
 .unit:hover { background: #eef2ff; }
+
+/* 移动端交互优化：去掉双击缩放延迟、点击即时响应 */
+button, .unit, .quiz-opt, .stage-pill, .tab, a { touch-action: manipulation; }
+input, textarea, select { touch-action: manipulation; }
 .unit-num {
   width: 26px;
   height: 26px;
@@ -179,7 +187,9 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 .chat-card {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 340px); /* 预留头部+底部导航高度，避免输入框被导航栏遮挡 */
+  /* 用动态视口高度：iOS/安卓地址栏收起时不再跳动（dvh 优先，旧浏览器回退 vh） */
+  height: calc(100vh - 340px);
+  height: calc(100dvh - 340px);
   min-height: 300px;
   padding: 14px;
 }
@@ -248,10 +258,11 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 .chat-input-row { display: flex; gap: 8px; margin-top: 8px; }
 .chat-input-row input {
   flex: 1;
+  min-width: 0; /* 防 flex 溢出导致页面横跳 */
   padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 16px; /* ≥16px 防止 iOS 聚焦时自动放大页面 */
   outline: none;
 }
 .chat-input-row input:focus { border-color: var(--primary); }
@@ -286,6 +297,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   max-width: 640px;
   margin: 0 auto;
   background: rgba(255,255,255,.95);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
@@ -317,6 +329,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   justify-content: center;
   padding: 20px;
   z-index: 100;
+  overscroll-behavior: contain; /* 弹窗内滚动不带动页面跳动 */
 }
 .modal[hidden] { display: none; } /* 关键：hidden 必须生效 */
 
@@ -325,7 +338,9 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   width: 100%;
   max-width: 380px;
   max-height: 82vh;
+  max-height: 82dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--card);
   border-radius: 18px;
   padding: 24px 20px 20px;
@@ -337,7 +352,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-size: 14px;
+  font-size: 16px; /* ≥16px 防止 iOS 聚焦时自动放大页面 */
   margin-bottom: 10px;
   outline: none;
 }
@@ -491,6 +506,8 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   overflow-x: auto;
   padding: 2px 2px 12px;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain; /* 横滑页签时不带动页面整体跳动 */
 }
 .stage-pills::-webkit-scrollbar { display: none; }
 .stage-pill {
