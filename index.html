@@ -52,6 +52,13 @@
             <div class="bubble md-body">你好！我是你的 AI 助教「小多」。登录后你可以随时问我：讲解概念、出题测验、就业变现建议，我都会陪你一步步来。</div>
           </div>
         </div>
+        <div class="chat-tools">
+          <label class="provider-label">模型</label>
+          <select id="tutor-provider">
+            <option value="gemini">Gemini（默认）</option>
+            <option value="deepseek">DeepSeek</option>
+          </select>
+        </div>
         <div class="chat-input-row">
           <input type="text" id="chat-input" placeholder="向小多提问…">
           <button class="btn send-btn" id="chat-send">发送</button>

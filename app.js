@@ -447,7 +447,12 @@
       const res = await fetch(APP_CONFIG.SUPABASE_URL + '/functions/v1/gemini-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ sessionId: chatSessionId, message: text, context: await currentContext() }),
+        body: JSON.stringify({
+          sessionId: chatSessionId,
+          message: text,
+          context: await currentContext(),
+          provider: $('#tutor-provider').value, // gemini | deepseek
+        }),
       });
       if (!res.ok) {
         let msg = 'HTTP ' + res.status;
@@ -492,6 +497,10 @@
 
   $('#chat-send').addEventListener('click', sendChat);
   chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  // 模型选择记忆
+  const providerSel = $('#tutor-provider');
+  providerSel.value = storage.get('tutor-provider', 'gemini');
+  providerSel.addEventListener('change', () => storage.set('tutor-provider', providerSel.value));
 
   // ---------- 登录 ----------
   const authBtn = $('#auth-btn');
