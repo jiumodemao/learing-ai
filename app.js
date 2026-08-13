@@ -74,7 +74,9 @@
     }
   }
 
+  let tasksRenderSeq = 0;
   async function loadTasks() {
+    const seq = ++tasksRenderSeq;
     const s = getSupabase(), u = getCurrentUser();
     if (s && u) {
       let { data } = await s.from('daily_tasks')
@@ -86,8 +88,10 @@
         data = (await s.from('daily_tasks')
           .select('*').eq('user_id', u.id).eq('task_date', dateKey())).data;
       }
+      if (seq !== tasksRenderSeq) return; // 并发渲染保护
       renderTasks(data || []);
     } else {
+      if (seq !== tasksRenderSeq) return;
       const doneIds = storage.get('tasks-' + dateKey(), []);
       renderTasks(TASK_TEMPLATE.map((title, i) => ({
         localId: 't' + i, title, done: doneIds.includes('t' + i),
@@ -265,11 +269,14 @@
     return card;
   }
 
+  let pathRenderSeq = 0;
   async function renderPath() {
+    const seq = ++pathRenderSeq;
     const root = $('#path-root');
     root.innerHTML = '';
     const { stages, units, lessons, cloud } = await fetchPathData();
     await loadDoneSet();
+    if (seq !== pathRenderSeq) return; // 并发渲染保护：过期调用直接丢弃，防止内容重复绘制
 
     // 预处理阶段数据（进度 + 单元列表）
     const stageData = stages.map((st) => {
@@ -380,39 +387,52 @@
     window.scrollTo(0, 0);
   }
 
-  // 页面 3：上课页（讲义 + 术语词典 + 任务 + 上下课导航）
-  async function openLessonPage(lesson, idx, unit) {
+  // 页面 3：上课页（先阅读后测验，两步分离；讲义 + 术语 + 任务 + 上下课导航）
+  async function openLessonPage(lesson, idx, unit, mode = 'read') {
     const root = $('#path-root');
     const ls = curUnitPage.lessons;
     const prev = idx > 0 ? ls[idx - 1] : null;
     const next = idx < ls.length - 1 ? ls[idx + 1] : null;
     const isDone = doneSet.has(lesson.id);
     const unitPct = ls.length ? Math.round((idx / ls.length) * 100) : 0;
+    const showQuiz = mode === 'quiz' && lesson.quiz;
+
+    const readingPart = `
+      <h2 class="lesson-page-title">${lesson.title}</h2>
+      ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
+      <div class="lesson-content md-body">${lesson.content ? renderMD(lesson.content) : '<p class="muted">内容撰写中…</p>'}</div>
+      ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
+      ${!showQuiz && lesson.quiz ? `<button class="btn primary quiz-entry" id="quiz-entry">📝 学完了？来做道小测验 →</button>` : ''}`;
+
+    const quizPart = `
+      <button class="back-btn" id="quiz-back">← 返回阅读</button>
+      <h2 class="lesson-page-title">📝 小测验</h2>
+      <div class="quiz-box">
+        <div class="quiz-q">${escText(lesson.quiz.q)}</div>
+        <div class="quiz-opts">
+          ${lesson.quiz.o.map((opt, i) => `<button class="quiz-opt" data-i="${i}"><b>${['A', 'B', 'C', 'D'][i]}.</b> ${escText(opt)}</button>`).join('')}
+        </div>
+        <div class="quiz-result"></div>
+      </div>`;
+
     root.innerHTML = `
       <button class="back-btn" id="path-back-lesson">← 返回单元</button>
       <div class="card lesson-page">
         <div class="lesson-kicker">第 ${idx + 1} / ${ls.length} 课 · ${unit.title}</div>
         <div class="progress-bar lesson-bar"><div class="progress-fill" style="width:${unitPct}%"></div></div>
-        <h2 class="lesson-page-title">${lesson.title}</h2>
-        ${lesson.terms ? `<div class="terms-box"><div class="terms-title">术语小词典</div><div class="md-body">${renderMD(lesson.terms)}</div></div>` : ''}
-        <div class="lesson-content md-body">${lesson.content ? renderMD(lesson.content) : '<p class="muted">内容撰写中…</p>'}</div>
-        ${lesson.task ? `<div class="lesson-task"><b>动手任务：</b>${lesson.task}</div>` : ''}
-        ${lesson.quiz ? `
-        <div class="quiz-box">
-          <div class="quiz-title">📝 小测验</div>
-          <div class="quiz-q">${escText(lesson.quiz.q)}</div>
-          <div class="quiz-opts">
-            ${lesson.quiz.o.map((opt, i) => `<button class="quiz-opt" data-i="${i}"><b>${['A', 'B', 'C', 'D'][i]}.</b> ${escText(opt)}</button>`).join('')}
-          </div>
-          <div class="quiz-result"></div>
-        </div>` : ''}
+        ${showQuiz ? quizPart : readingPart}
         <div class="lesson-nav">
           <button class="btn ghost" id="prev-btn" ${prev ? '' : 'disabled'}>← 上一课</button>
           <button class="btn primary" id="done-btn">${isDone ? '已完成 ✓' : '标记完成'}</button>
           <button class="btn ghost" id="next-btn" ${next ? '' : 'disabled'}>下一课 →</button>
         </div>
       </div>`;
+
     root.querySelector('#path-back-lesson').addEventListener('click', () => openUnitPage(unit));
+    const qEntry = root.querySelector('#quiz-entry');
+    if (qEntry) qEntry.addEventListener('click', () => openLessonPage(lesson, idx, unit, 'quiz'));
+    const qBack = root.querySelector('#quiz-back');
+    if (qBack) qBack.addEventListener('click', () => openLessonPage(lesson, idx, unit, 'read'));
     root.querySelector('#done-btn').addEventListener('click', async () => {
       const markingDone = !isDone;
       await markLessonDone(lesson.id, markingDone);
@@ -426,7 +446,7 @@
           setTimeout(() => openUnitPage(unit), 1100);
         }
       } else {
-        openLessonPage(lesson, idx, unit);
+        openLessonPage(lesson, idx, unit, mode);
       }
     });
     // 小测验交互：点选项立即判分并显示解析
@@ -646,8 +666,10 @@
 
   // ---------- 热点日报 ----------
   let newsDate = null;
+  let newsRenderSeq = 0;
 
   async function loadNews(dateStr) {
+    const seq = ++newsRenderSeq;
     const root = $('#news-root');
     const s = getSupabase();
     if (!s) { root.innerHTML = '<div class="card"><p class="muted">云端未配置</p></div>'; return; }
@@ -657,6 +679,7 @@
     } else {
       newsDate = dateStr;
     }
+    if (seq !== newsRenderSeq) return; // 并发渲染保护
     if (!newsDate) {
       root.innerHTML = '<div class="card"><p class="muted">第一期日报还没发布，敬请期待。每天 11 点自动更新。</p></div>';
       return;

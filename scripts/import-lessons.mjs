@@ -81,7 +81,14 @@ for (const u of units) {
   });
 }
 
-const sqlInsert = `insert into lessons (unit_id, ord, title, content, task, terms, quiz) values ${rows.join(',\n')};`;
+// 原地更新（upsert）：课程 ID 保持稳定，用户的进度/打卡/测验数据不丢失
+const sqlInsert = `insert into lessons (unit_id, ord, title, content, task, terms, quiz) values ${rows.join(',\n')}
+on conflict (unit_id, ord) do update set
+  title = excluded.title,
+  content = excluded.content,
+  task = excluded.task,
+  terms = excluded.terms,
+  quiz = excluded.quiz;`;
 const api = async (query) => {
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',
@@ -93,13 +100,7 @@ const api = async (query) => {
   return text;
 };
 
-// 先清空再导入（只导入单文件时，只清空该文件涉及的单元，不动其他）
-const ids = [...new Set(units.map((u) => u.id))];
-const delSql = only
-  ? `delete from lessons where unit_id in (${ids.join(',')});`
-  : 'delete from lessons;';
-const r1 = await api(delSql);
-console.log('清空:', r1);
+// 原地更新（upsert，不再清空），ID 稳定则用户学习进度不丢
 const r2 = await api(sqlInsert);
 console.log('导入完成:', r2);
 console.log(`共 ${units.length} 个单元 / ${rows.length} 课`);

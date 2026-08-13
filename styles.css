@@ -540,6 +540,8 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 }
 .unit-state.done { background: #ecfdf5; color: var(--ok); }
 
+.quiz-entry { margin-top: 18px; }
+
 /* 小测验 */
 .quiz-box {
   margin-top: 16px;
