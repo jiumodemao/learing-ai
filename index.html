@@ -16,30 +16,13 @@
       <span class="header-sub">AI 学习 · 变现陪跑</span>
     </div>
     <div class="header-right">
-      <div class="streak" id="streak">🔥 连续 0 天</div>
       <button class="auth-btn" id="auth-btn">登录</button>
     </div>
   </header>
 
   <main>
-    <!-- 今日任务 -->
-    <section id="tab-today" class="tab-panel active">
-      <div class="card hero-card">
-        <div class="date-line" id="today-date"></div>
-        <div class="hero-meta">
-          <span class="hero-progress-text" id="task-progress-text">0/0 任务</span>
-          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-        </div>
-      </div>
-      <div class="card">
-        <h2 class="card-title">今日任务</h2>
-        <ul class="task-list" id="task-list"></ul>
-        <button class="btn primary" id="checkin-btn" disabled>完成今日任务并打卡</button>
-      </div>
-    </section>
-
     <!-- 学习路径 -->
-    <section id="tab-path" class="tab-panel">
+    <section id="tab-path" class="tab-panel active">
       <div id="path-root"></div>
     </section>
 
@@ -112,11 +95,7 @@
   </main>
 
   <nav class="tabbar">
-    <button class="tab active" data-tab="today">
-      <svg viewBox="0 0 24 24" width="21" height="21"><path d="M9 5h6M9 5a2 2 0 0 1-2-2h10a2 2 0 0 1-2 2M9 5v1h6V5M6 5H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1M9 12l2 2 4-4" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>今日任务</span>
-    </button>
-    <button class="tab" data-tab="path">
+    <button class="tab active" data-tab="path">
       <svg viewBox="0 0 24 24" width="21" height="21"><path d="M4 19l4-4 4 3 8-8M16 6h4v4" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="5" r="1.6" fill="currentColor"/><circle cx="18" cy="19" r="1.6" fill="currentColor"/></svg>
       <span>学习路径</span>
     </button>

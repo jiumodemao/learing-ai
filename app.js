@@ -14,13 +14,6 @@
     set(k, v) { localStorage.setItem(k, JSON.stringify(v)); },
   };
 
-  // 今日任务模板（后续由任务生成器按学习进度自动生成）
-  const TASK_TEMPLATE = [
-    '完成当前单元的一节课程（去学习路径里选）',
-    '动手：把今天学的用 AI 实操一次',
-    '向助教提问，或做一道小测验',
-  ];
-
   // ---------- 标签页 ----------
   const tabs = $$('.tab');
   const panels = $$('.tab-panel');
@@ -30,122 +23,6 @@
     t.classList.add('active');
     $('#tab-' + t.dataset.tab).classList.add('active');
   }));
-
-  // ---------- 今日任务 ----------
-  const taskListEl = $('#task-list');
-
-  function updateProgress() {
-    const all = taskListEl.querySelectorAll('input').length;
-    const done = taskListEl.querySelectorAll('input:checked').length;
-    $('#task-progress-text').textContent = `${done}/${all} 任务`;
-    $('#progress-fill').style.width = all ? (done / all) * 100 + '%' : '0%';
-    const btn = $('#checkin-btn');
-    btn.disabled = done < all;
-    btn.textContent = done < all ? `完成今日任务并打卡（${done}/${all}）` : '完成今日任务并打卡';
-  }
-
-  function renderTasks(rows) {
-    taskListEl.innerHTML = '';
-    rows.forEach((t) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<input type="checkbox"${t.done ? ' checked' : ''}><span>${escText(t.title)}</span>`;
-      li.classList.toggle('done', !!t.done);
-      li.querySelector('input').addEventListener('change', (e) => {
-        const done = e.target.checked;
-        li.classList.toggle('done', done);
-        persistTask(t, done);
-        updateProgress();
-      });
-      taskListEl.appendChild(li);
-    });
-    updateProgress();
-  }
-
-  async function persistTask(t, done) {
-    const s = getSupabase(), u = getCurrentUser();
-    if (s && u) {
-      await s.from('daily_tasks')
-        .update({ done, done_at: done ? new Date().toISOString() : null })
-        .eq('id', t.id);
-    } else {
-      const localId = t.localId ?? t.id;
-      const doneIds = storage.get('tasks-' + dateKey(), []);
-      storage.set('tasks-' + dateKey(), done ? [...doneIds, localId] : doneIds.filter((x) => x !== localId));
-    }
-  }
-
-  let tasksRenderSeq = 0;
-  async function loadTasks() {
-    const seq = ++tasksRenderSeq;
-    const s = getSupabase(), u = getCurrentUser();
-    if (s && u) {
-      let { data } = await s.from('daily_tasks')
-        .select('*').eq('user_id', u.id).eq('task_date', dateKey());
-      if (!data || data.length === 0) {
-        try {
-          await s.from('daily_tasks').insert(
-            TASK_TEMPLATE.map((title) => ({ user_id: u.id, task_date: dateKey(), title }))
-          );
-        } catch { /* 并发插入冲突由数据库唯一约束兜底 */ }
-        data = (await s.from('daily_tasks')
-          .select('*').eq('user_id', u.id).eq('task_date', dateKey())).data;
-      }
-      if (seq !== tasksRenderSeq) return; // 并发渲染保护
-      renderTasks(data || []);
-    } else {
-      if (seq !== tasksRenderSeq) return;
-      const doneIds = storage.get('tasks-' + dateKey(), []);
-      renderTasks(TASK_TEMPLATE.map((title, i) => ({
-        localId: 't' + i, title, done: doneIds.includes('t' + i),
-      })));
-    }
-  }
-
-  // ---------- 日期与打卡 ----------
-  $('#today-date').textContent = today.toLocaleDateString('zh-CN', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-  });
-
-  function calcStreak(dates) {
-    const set = new Set(dates);
-    const d = new Date();
-    if (!set.has(dateKey())) d.setDate(d.getDate() - 1);
-    let n = 0;
-    while (set.has(d.toISOString().slice(0, 10))) { n++; d.setDate(d.getDate() - 1); }
-    return n;
-  }
-
-  async function updateStreak() {
-    const s = getSupabase(), u = getCurrentUser();
-    let count = 0;
-    if (s && u) {
-      const { data } = await s.from('checkins').select('check_date').eq('user_id', u.id);
-      count = calcStreak((data || []).map((r) => r.check_date));
-    } else {
-      count = storage.get('streak-count', 0);
-    }
-    $('#streak').textContent = `🔥 连续 ${count} 天`;
-  }
-
-  $('#checkin-btn').addEventListener('click', async () => {
-    const s = getSupabase(), u = getCurrentUser();
-    if (s && u) {
-      await s.from('checkins').upsert(
-        { user_id: u.id, check_date: dateKey() }, { onConflict: 'user_id,check_date' }
-      );
-    } else {
-      const st = storage.get('streak', { lastDate: '', count: 0 });
-      const y = new Date(today); y.setDate(today.getDate() - 1);
-      const yKey = y.toISOString().slice(0, 10);
-      if (st.lastDate === dateKey()) return;
-      st.count = st.lastDate === yKey ? st.count + 1 : 1;
-      st.lastDate = dateKey();
-      storage.set('streak', st);
-      storage.set('streak-count', st.count);
-    }
-    $('#checkin-btn').textContent = '已打卡，明天继续！';
-    updateStreak();
-  });
 
   // ---------- 学习路径 ----------
   // 未登录时的演示数据
@@ -694,8 +571,6 @@
     // 知识库管理入口：仅管理员可见
     $('#admin-nav').hidden = !(user && isOwner());
     if (user && isOwner()) loadAdmin();
-    loadTasks();
-    updateStreak();
     renderPath();
   };
 
@@ -774,8 +649,9 @@
       listEl.innerHTML = '<li class="muted">登录后使用笔记功能。</li>';
       return;
     }
-    const { data: notes } = await s.from('notes')
+    const { data: notes, error: noteErr } = await s.from('notes')
       .select('*').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200);
+    if (noteErr) { listEl.innerHTML = '<li class="muted">笔记加载失败：' + escText(noteErr.message) + '</li>'; return; }
     const { data: reviews } = await s.from('note_reviews')
       .select('*').eq('user_id', u.id).order('review_date', { ascending: false }).limit(1);
     if (seq !== notesSeq) return;
@@ -808,7 +684,8 @@
       </li>`).join('');
     listEl.querySelectorAll('.note-del').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        await getSupabase().from('notes').delete().eq('id', btn.dataset.id);
+        const { error } = await getSupabase().from('notes').delete().eq('id', btn.dataset.id);
+        if (error) { showToast('删除失败：' + (error.message || '未知错误')); return; }
         loadNotes();
       });
     });
@@ -820,7 +697,8 @@
     const text = input.value.trim();
     if (!s || !u) { showToast('请先登录'); return; }
     if (!text) return;
-    await s.from('notes').insert({ user_id: u.id, content: text });
+    const { error } = await s.from('notes').insert({ user_id: u.id, content: text });
+    if (error) { showToast('记下失败：' + (error.message || '未知错误')); return; }
     input.value = '';
     showToast('已记下 ✓');
     loadNotes();
@@ -947,8 +825,6 @@
 
   // ---------- 启动 ----------
   initAuth();
-  loadTasks();
-  updateStreak();
   renderPath();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

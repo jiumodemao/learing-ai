@@ -44,14 +44,6 @@ body {
 .header-text h1 { font-size: 22px; letter-spacing: 1px; line-height: 1.25; }
 .header-sub { display: block; font-size: 12px; opacity: .85; white-space: nowrap; }
 .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.streak {
-  font-size: 12px;
-  background: rgba(255,255,255,.18);
-  padding: 5px 12px;
-  border-radius: 999px;
-  backdrop-filter: blur(4px);
-  white-space: nowrap;
-}
 .auth-btn {
   padding: 5px 16px;
   border: 1px solid rgba(255,255,255,.6);
@@ -79,14 +71,7 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
 }
 .card-title { font-size: 15px; margin-bottom: 8px; }
 
-/* ===== 今日任务 ===== */
-.hero-card {
-  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-  border: 1px solid #e0e7ff;
-}
-.date-line { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
-.hero-meta { display: flex; align-items: center; gap: 12px; }
-.hero-progress-text { font-size: 13px; color: var(--primary); font-weight: 600; white-space: nowrap; }
+/* ===== 进度条（学习路径用） ===== */
 .progress-bar {
   flex: 1;
   height: 8px;
@@ -101,20 +86,6 @@ main { max-width: 640px; margin: 0 auto; padding: 16px 16px 24px; }
   border-radius: 999px;
   transition: width .3s ease;
 }
-
-.task-list { list-style: none; margin: 6px 0 14px; }
-.task-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 13px 4px;
-  border-bottom: 1px solid var(--line);
-  font-size: 15px;
-  cursor: pointer;
-}
-.task-list li:last-child { border-bottom: none; }
-.task-list input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary); flex-shrink: 0; }
-.task-list li.done span { color: var(--muted); text-decoration: line-through; }
 
 .btn {
   width: 100%;
