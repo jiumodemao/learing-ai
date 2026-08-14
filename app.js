@@ -761,6 +761,105 @@
   // 首次进入热点页自动加载（重复点击刷新）
   document.querySelector('.tab[data-tab="news"]').addEventListener('click', () => loadNews());
 
+  // ---------- 笔记（第二大脑） ----------
+  let allNotes = [];
+  let notesSeq = 0;
+
+  async function loadNotes() {
+    const seq = ++notesSeq;
+    const s = getSupabase(), u = getCurrentUser();
+    const listEl = $('#note-list');
+    const reviewEl = $('#note-review');
+    if (!s || !u) {
+      listEl.innerHTML = '<li class="muted">登录后使用笔记功能。</li>';
+      return;
+    }
+    const { data: notes } = await s.from('notes')
+      .select('*').eq('user_id', u.id).order('created_at', { ascending: false }).limit(200);
+    const { data: reviews } = await s.from('note_reviews')
+      .select('*').eq('user_id', u.id).order('review_date', { ascending: false }).limit(1);
+    if (seq !== notesSeq) return;
+    allNotes = notes || [];
+    if (reviews && reviews[0] && reviews[0].content) {
+      reviewEl.innerHTML = `<div class="review-box"><div class="review-title">📋 最近整理 · ${reviews[0].review_date}</div><div>${renderMD(reviews[0].content)}</div></div>`;
+    } else {
+      reviewEl.innerHTML = '<p class="muted">还没有整理报告。点"AI 整理"或等每天自动整理。</p>';
+    }
+    renderNoteList();
+  }
+
+  function renderNoteList() {
+    const kw = ($('#note-search').value || '').trim().toLowerCase();
+    const listEl = $('#note-list');
+    const shown = allNotes.filter((n) => !kw || (n.content + (n.summary || '') + (n.tags || []).join('')).toLowerCase().includes(kw));
+    if (!shown.length) {
+      listEl.innerHTML = '<li class="muted">' + (allNotes.length ? '没有匹配的笔记。' : '还没有笔记，去上面随手记第一条吧。') + '</li>';
+      return;
+    }
+    listEl.innerHTML = shown.map((n) => `
+      <li class="note-item">
+        <div class="note-content">${escText(n.content)}</div>
+        <div class="note-meta">
+          ${(n.tags || []).map((t) => `<span class="note-tag">${escText(t)}</span>`).join('')}
+          ${n.summary ? `<span class="note-summary">${escText(n.summary)}</span>` : '<span class="note-raw">待整理</span>'}
+          <span class="note-date">${new Date(n.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span>
+          <button class="note-del" data-id="${n.id}">删除</button>
+        </div>
+      </li>`).join('');
+    listEl.querySelectorAll('.note-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await getSupabase().from('notes').delete().eq('id', btn.dataset.id);
+        loadNotes();
+      });
+    });
+  }
+
+  $('#note-add').addEventListener('click', async () => {
+    const s = getSupabase(), u = getCurrentUser();
+    const input = $('#note-input');
+    const text = input.value.trim();
+    if (!s || !u) { showToast('请先登录'); return; }
+    if (!text) return;
+    await s.from('notes').insert({ user_id: u.id, content: text });
+    input.value = '';
+    showToast('已记下 ✓');
+    loadNotes();
+  });
+
+  $('#note-search').addEventListener('input', renderNoteList);
+
+  $('#note-organize').addEventListener('click', async () => {
+    const s = getSupabase(), u = getCurrentUser();
+    if (!s || !u) { showToast('请先登录'); return; }
+    showToast('AI 整理中…');
+    const { data, error } = await s.functions.invoke('notes-ai', { body: { action: 'organize' } });
+    if (error) { showToast('整理失败：' + error.message); return; }
+    showToast(data.organized > 0 ? `已整理 ${data.organized} 条 ✓` : '没有待整理的笔记');
+    loadNotes();
+  });
+
+  $('#note-ask-btn').addEventListener('click', askNotes);
+  $('#note-ask-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) askNotes();
+  });
+
+  async function askNotes() {
+    const s = getSupabase(), u = getCurrentUser();
+    const input = $('#note-ask-input');
+    const question = input.value.trim();
+    const result = $('#note-ask-result');
+    if (!s || !u) { result.innerHTML = '<p class="muted">请先登录。</p>'; return; }
+    if (!question) return;
+    result.innerHTML = '<p class="muted">检索中…</p>';
+    const { data, error } = await s.functions.invoke('notes-ai', {
+      body: { action: 'ask', question, keyword: ($('#note-search').value || '').trim() },
+    });
+    if (error) { result.innerHTML = '<p class="muted">出错了：' + error.message + '</p>'; return; }
+    result.innerHTML = renderMD(data.answer || '（没有回答）');
+  }
+  // 首次进入笔记页自动加载
+  document.querySelector('.tab[data-tab="notes"]').addEventListener('click', () => loadNotes());
+
   // ---------- 知识库管理（仅管理员） ----------
   const isOwner = () => getCurrentUser()?.id === APP_CONFIG.ADMIN_USER_ID;
   const escAttr = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\$\{/g, '&#36;{');

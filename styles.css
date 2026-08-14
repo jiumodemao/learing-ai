@@ -669,6 +669,66 @@ input, textarea, select { touch-action: manipulation; }
 }
 .toast.show { transform: translate(-50%, 0); }
 
+/* ===== 笔记（第二大脑） ===== */
+#note-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 15px;
+  font-family: inherit;
+  margin: 8px 0 10px;
+  outline: none;
+  resize: vertical;
+}
+#note-input:focus { border-color: var(--primary); }
+
+.notes-tools { display: flex; gap: 8px; align-items: center; }
+#note-search {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 14px;
+  outline: none;
+}
+
+.review-box {
+  margin-top: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+}
+.review-title { font-weight: 700; color: #1d4ed8; margin-bottom: 6px; }
+
+.note-list { list-style: none; }
+.note-item { padding: 12px 2px; border-bottom: 1px solid var(--line); }
+.note-item:last-child { border-bottom: none; }
+.note-content { font-size: 14.5px; margin-bottom: 6px; white-space: pre-wrap; }
+.note-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.note-tag {
+  font-size: 11.5px;
+  background: #eef2ff;
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.note-summary { font-size: 12px; color: var(--ok); }
+.note-raw { font-size: 11.5px; color: #d97706; background: #fffbeb; padding: 2px 8px; border-radius: 999px; }
+.note-date { font-size: 12px; color: var(--muted); margin-left: auto; }
+.note-del {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.note-del:hover { color: #dc2626; }
+.note-ask-result { margin-top: 10px; font-size: 14.5px; }
+
 /* ===== 知识库管理页 ===== */
 .admin-unit-list { list-style: none; }
 .admin-unit {

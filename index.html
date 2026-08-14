@@ -71,6 +71,35 @@
       <div id="news-root"></div>
     </section>
 
+    <!-- 笔记（第二大脑） -->
+    <section id="tab-notes" class="tab-panel">
+      <div class="card">
+        <h2 class="card-title">随手记</h2>
+        <p class="muted">想到什么就记什么，10 秒一条，整理交给 AI</p>
+        <textarea id="note-input" rows="2" placeholder="例如：今天看到一句话——写作是思考的落地"></textarea>
+        <button class="btn primary" id="note-add">记下</button>
+      </div>
+      <div class="card">
+        <div class="notes-tools">
+          <input id="note-search" placeholder="🔍 关键词搜索我的笔记">
+          <button class="mini-btn" id="note-organize">✨ AI 整理</button>
+        </div>
+        <div class="note-review md-body" id="note-review"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">问我的笔记</h2>
+        <div class="chat-input-row">
+          <input type="text" id="note-ask-input" placeholder="例如：我记过什么关于健身的？">
+          <button class="btn send-btn" id="note-ask-btn">问</button>
+        </div>
+        <div class="note-ask-result md-body" id="note-ask-result"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">全部笔记</h2>
+        <ul class="note-list" id="note-list"></ul>
+      </div>
+    </section>
+
     <!-- 知识库管理（仅管理员可见） -->
     <section id="tab-admin" class="tab-panel">
       <div class="card">
@@ -98,6 +127,10 @@
     <button class="tab" data-tab="news">
       <svg viewBox="0 0 24 24" width="21" height="21"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H13L13 2z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
       <span>热点</span>
+    </button>
+    <button class="tab" data-tab="notes">
+      <svg viewBox="0 0 24 24" width="21" height="21"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      <span>笔记</span>
     </button>
     <button class="tab" data-tab="admin" id="admin-nav" hidden>
       <svg viewBox="0 0 24 24" width="21" height="21"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linejoin="round"/></svg>
